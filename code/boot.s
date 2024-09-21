@@ -1,22 +1,20 @@
 ; Boot ROM for 6502 computer. Provides shell which can access test programs.
 
 .include "./version.s"
+.include "./zp_variables.s"
+.include "./buffer.s"
 .include "hardware/speaker.s"
 .include "hardware/acia.s"
 .include "hardware/via.s"
 .include "hardware/keyboard.s"
 .include "hardware/lcd.s"
 
-.segment "BSS"
-shell_cmd_id: .res 1
-shell_cmd_tmp: .res 1
-shell_buffer_used: .res 1
-shell_buffer: .res 64
-
 .segment "CODE"
 
 reset:
   ; Computer setup
+
+  ; init stack
   ldx #$ff
   txs
   
@@ -412,7 +410,7 @@ shell_rx_print_user_program_ascii: ; Print the first 255 bytes of uploaded user 
   ldx #20               ; Number of hex digits per line
 @user_program_char_ascii:
 ;  lda USER_PROGRAM_START, Y
-  lda lcd_buffer, Y
+  lda LCD_BUFFER, Y
   phx
   jsr kernel_putc_ACIA    ; Print the char (clobbers X)
   plx

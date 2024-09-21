@@ -7,13 +7,6 @@ RS = %00010000
 
 CPUFREQUENCY = 2 ; clock frequency in MHz for delay subroutine
 
-lcd_col  = $0003 ; current LCD col
-lcd_row  = $0004 ; current LCD row
-str_ptr  = $0005 ; 2 byte pointer
-
-lcd_buffer = $0300
-lcd_buf_ind = $0007 ; 1 byte index
-
 LCD_FIRST_LINE = 0
 LCD_SECOND_LINE = 20
 
@@ -63,24 +56,24 @@ lcd_setup:
   jsr lcd_instruction
   
   lda #$00
-  sta lcd_buf_ind
-  sta lcd_col
-  sta lcd_row
+  sta LCD_BUF_IDX
+  sta LCD_COL
+  sta LCD_ROW
   jsr lcd_setcursor
   
   ; init lcd buffer
   ldx #0
   lda #$20  ; blank/space char
 @init_buf:
-  sta lcd_buffer, x
+  sta LCD_BUFFER, x
   inx
   cpx #LCDMAXCOL
   bne @init_buf
 
 ;  lda #<prompt            ; Load low byte of our 16-bit value
-;  sta str_ptr
+;  sta LCD_STR_PTR
 ;  lda #>prompt            ; Load high byte of our 16-bit value
-;  sta str_ptr + 1
+;  sta LCD_STR_PTR + 1
 ;  jsr print_str
   rts
 
@@ -233,23 +226,23 @@ lcd_writedata:
 lcd_clear:
   pha
   lda #$00
-  sta lcd_col
-  sta lcd_row
+  sta LCD_COL
+  sta LCD_ROW
   lda #%00000001 ; Clear screen
   jsr lcd_instruction
   jsr lcd_setcursor
   pla
   rts
   
-lcd_setcursor: ; (lcd_col, lcd_row)
+lcd_setcursor: ; (LCD_COL, LCD_ROW)
   pha
   phx
-  ldx lcd_row
+  ldx LCD_ROW
   cpx #LCDROWS
   beq lcdskipsetcursor ; dont wrap around if (col,row) out of range (less confusion)
   
   lda lcdrowstart, x
-  adc lcd_col
+  adc LCD_COL
   ora #%10000000 ; Set DDRAM address
   jsr lcd_instruction
   
@@ -262,20 +255,20 @@ lcd_backspace:
   pha
   phx
   
-  lda lcd_col
+  lda LCD_COL
   beq colzero
   dec
-  sta lcd_col
+  sta LCD_COL
   bra backspaceexit
   
 colzero:
-  ldx lcd_row
+  ldx LCD_ROW
   beq backspaceexit
   dex
-  stx lcd_row
+  stx LCD_ROW
   lda #LCDCOLS
   dec
-  sta lcd_col
+  sta LCD_COL
   
 backspaceexit:
   plx
@@ -286,7 +279,7 @@ backspaceexit:
 lcd_enter:
   phx
   
-  ldx lcd_row
+  ldx LCD_ROW
   inx
   cpx #LCDROWS
   bne lcd_enter_do
@@ -295,11 +288,11 @@ lcd_enter:
   jmp lcd_enter_end
   
 lcd_enter_do:
-  stx lcd_row
+  stx LCD_ROW
   lda lcdbufrowstart, x
-  sta lcd_buf_ind
+  sta LCD_BUF_IDX
   ldx #$00
-  stx lcd_col
+  stx LCD_COL
   
 lcd_enter_end:
   plx
@@ -335,7 +328,7 @@ print_str:
   ldy #0
 
 print_next:
-  lda (str_ptr), y
+  lda (LCD_STR_PTR), y
   beq print_exit
   jsr lcd_print_char
   iny
@@ -363,13 +356,13 @@ lcd_print_char_from_write_buf:  ; Aufruf aus lcd_write_buf raus
   jsr lcd_writedata
   
   ; move cursor to next cell
-  inc lcd_col
+  inc LCD_COL
   lda #LCDCOLS
-  cmp lcd_col
+  cmp LCD_COL
   bne exit_print_char
   lda #0
-  sta lcd_col
-  inc lcd_row
+  sta LCD_COL
+  inc LCD_ROW
   
 exit_print_char:
   jsr lcd_setcursor ; to display next cell position
@@ -383,17 +376,17 @@ lcd_write_buf:
   pha
 
   ldx #LCDMAXCOL
-  cpx lcd_buf_ind
+  cpx LCD_BUF_IDX
   bne write_buf
 
   jsr scroll_lcd
   
 write_buf:
-  ldx lcd_buf_ind
+  ldx LCD_BUF_IDX
   pla
-  sta lcd_buffer, x  ; store char into lcd_buffer
+  sta LCD_BUFFER, x  ; store char into LCD_BUFFER
   
-  inc lcd_buf_ind
+  inc LCD_BUF_IDX
   
   plx
   rts
@@ -403,12 +396,12 @@ scroll_lcd:
   phy
   pha
   
-  ; scroll lcd_buffer
+  ; scroll LCD_BUFFER
   ldx #LCD_FIRST_LINE
   ldy #LCD_SECOND_LINE
 @memcopy:
-  lda lcd_buffer, y
-  sta lcd_buffer, x
+  lda LCD_BUFFER, y
+  sta LCD_BUFFER, x
   inx
   iny
   cpy #LCDMAXCOL
@@ -417,20 +410,20 @@ scroll_lcd:
   ldx #LCDMAXSCROLL
   lda #$20  ; blank/space char
 @init_line:
-  sta lcd_buffer, x
+  sta LCD_BUFFER, x
   inx
   cpx #LCDMAXCOL
   bne @init_line
 
   lda #LCDMAXSCROLL
-  sta lcd_buf_ind
+  sta LCD_BUF_IDX
   
   ; scroll lcd
   jsr lcd_clear
   
   ldx #LCD_FIRST_LINE
 @print_chars:
-  lda lcd_buffer, x
+  lda LCD_BUFFER, x
   jsr lcd_print_char_from_write_buf
   inx
   cpx #LCDMAXSCROLL

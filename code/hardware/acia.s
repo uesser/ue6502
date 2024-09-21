@@ -3,24 +3,30 @@ ACIA_STATUS = $8401
 ACIA_COMMAND = $8402
 ACIA_CONTROL = $8403
 
-ACIA_BUFFER = $0200
-ACIA_WR_PTR = $00FE
-ACIA_RD_PTR = $00FF
-
 ;; Helper routines for the ACIA buffer
 ;; from http://wilsonminesco.com/6502interrupts/index.html
 .macro wr_acia_buf     ; write into ACIA buf and handle pointer
-        ; Put value in increment pointer.
+                       ; Put value in increment pointer.
         ldx ACIA_WR_PTR
         sta ACIA_BUFFER, X
-        inc ACIA_WR_PTR
+        inx
+        cpx #ACIA_BUFFER_SIZE
+        bne @wr_acia_buf_end
+        ldx #0
+@wr_acia_buf_end:
+        stx ACIA_WR_PTR
 .endmacro
 
 .macro rd_acia_buf     ; read from ACIA buf and handle pointer
-        ; Read value and increment pointer.
+                       ; Read value and increment pointer.
         ldx ACIA_RD_PTR
         lda ACIA_BUFFER, X
-        inc ACIA_RD_PTR
+        inx
+        cpx #ACIA_BUFFER_SIZE
+        bne @rd_acia_buf_end
+        ldx #0
+@rd_acia_buf_end:
+        stx ACIA_RD_PTR
 .endmacro
 
 .macro acia_buf_dif    ; Subtract the buffer pointers (wrap around is fine)
@@ -33,10 +39,10 @@ acia_setup:
 	; Polled 65c51 I/O routines. Delay routine from
 	; http://forum.6502.org/viewtopic.php?f=4&t=2543&start=30#p29795
 	
-  lda #$00 
-  sta ACIA_WR_PTR             ; initialize ACIA write pointer
-  sta ACIA_RD_PTR             ; initialize ACIA read pointer
-	sta ACIA_STATUS             ; write anything to status register for program reset
+    stz ACIA_WR_PTR             ; initialize ACIA write pointer
+    stz ACIA_RD_PTR             ; initialize ACIA read pointer
+
+	stz ACIA_STATUS             ; write anything to status register for program reset
 	lda #$1f                    ; %0001 1111 = 19200 Baud
 		                          ;              External receiver
 		                          ;              8 bit words

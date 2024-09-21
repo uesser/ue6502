@@ -11,15 +11,6 @@ KEYB_IFR   = VIA_IFR
 KEYB_T2C_L = VIA_T2C_L
 KEYB_T2C_H = VIA_T2C_H
 
-zp_temp = $20            ; 1 byte memory
-zp_ps2_readresult = $21  ; 3 byte memory
-
-zp_ps2_bufwriteptr = $24 ; 1 byte memory
-zp_ps2_bufreadptr = $25  ; 1 byte memory
-
-ps2_input_buffer = $0300 ; buffer starts at $0350 to $03FF - $B0 (Dez: 176) characters wide
-BUFFER_START = $50
-
 entry:
 ;	jsr printimm
 ;	.byte "Checking VIA...", 10, 13, 0
@@ -70,24 +61,25 @@ ps2_init:
 
 	; Enable T2 counting pulses on PB6, and set SR in read mode, external clock (011)
 	lda #$20 + $0c
-  sta KEYB_ACR
+    sta KEYB_ACR
 
 	; Some USB-compatible keyboards dont act as PS/2 keyboards unless we send a reset command to them first
 	lda #$ff
-  jsr ps2_write
+    jsr ps2_write
 
 	; Initialise input buffer
-	jsr ps2_init_input_buffer
+	stz KEYB_RD_PTR
+    stz KEYB_WR_PTR
 
 	; Prepare for the first character
 	jsr ps2_prepare_read_character
 
 	; Disable interrupts except for T2 and SR
 	lda #$7f
-  sta KEYB_IER
-  sta KEYB_IFR
+    sta KEYB_IER
+    sta KEYB_IFR
 	lda #$80 + $24
-  sta KEYB_IER
+    sta KEYB_IER
 
 	rts
 
@@ -238,12 +230,12 @@ irq_via_ps2_sr:
 	; Make a signal to trigger the oscilloscope
 ;	sta VIA_PORTA
 
-	sta zp_ps2_readresult+1
+	sta KEYB_RD_RESULT+1
 	
 	; The start bit should have been zero
 	bmi irq_via_ps2_framingerror          ; bmi = branch if result negative => highest bit (start bit) is not 0
 
-	sta zp_ps2_readresult
+	sta KEYB_RD_RESULT
 
   ply                       ; restore y
   plx                       ; restore x
@@ -261,7 +253,7 @@ irq_via_ps2_t2:
 	; Make a signal to trigger the oscilloscope
 ;  sta VIA_PORTA
 
-	sta zp_ps2_readresult+2
+	sta KEYB_RD_RESULT+2
 
 	; The bottom bit is the stop bit, which should be set
 	ror
@@ -271,19 +263,19 @@ irq_via_ps2_t2:
 	; The parity will move to the bit 7 of A.
 	ror
   ror
-  rol zp_ps2_readresult
+  rol KEYB_RD_RESULT
 
 	; The bits of the result byte are now in reverse order - the non-IRQ code can deal with that though
 
 	; Check the parity - it should be odd
 	and #$80
-  eor zp_ps2_readresult
+  eor KEYB_RD_RESULT
   lsr
-  eor zp_ps2_readresult
-	sta zp_temp
+  eor KEYB_RD_RESULT
+	sta KEYB_TMP
   lsr
   lsr
-  eor zp_temp
+  eor KEYB_TMP
 	and #17
   beq irq_via_ps2_framingerror
 	cmp #17
@@ -293,11 +285,11 @@ irq_via_ps2_t2:
 
 	jsr ps2_prepare_read_character
 
-	lda zp_ps2_readresult
+	lda KEYB_RD_RESULT
 	jsr ps2_add_to_buffer
 
 	; Synthesize framing errors sometimes ("B" key)
-	lda zp_ps2_readresult
+	lda KEYB_RD_RESULT
 	cmp #$4c
   beq irq_via_ps2_causeframingerror
 
@@ -344,23 +336,15 @@ irq_via_ps2_framingerror:
 ;;;;;; PS/2 input buffer management
 
 
-ps2_init_input_buffer:
-	; Initialise the input buffers.
-	lda #BUFFER_START
-	sta zp_ps2_bufreadptr
-  sta zp_ps2_bufwriteptr
-
-	rts
-
 wait_for_ps2_read_from_buffer:
-  phy
-  phx
+    phy
+    phx
 
 @wait_for_ps2:
 	sei
 
-	ldy zp_ps2_bufreadptr
-	cpy zp_ps2_bufwriteptr
+	ldy KEYB_RD_PTR
+	cpy KEYB_WR_PTR
 	bne ps2_read_from_buffer_gotchar
 
 	; The buffer is empty, wait for an interrupt
@@ -371,27 +355,35 @@ wait_for_ps2_read_from_buffer:
 ps2_read_from_buffer_gotchar:
 	cli
 
-	ldx ps2_input_buffer, y
-  iny
-	sty zp_ps2_bufreadptr
+	ldx KEYB_BUFFER, y
+    iny
+    cpy #KEYB_BUFFER_SIZE
+    bne @check_rd_size_end
+    ldy #0
+@check_rd_size_end:
+	sty KEYB_RD_PTR
 
 	; The bits are backwards because the PS/2 protocol and 6522 shift register work in opposite ways
-  lda keycode_reverse_lookup_table, x
+    lda keycode_reverse_lookup_table, x
 	
-  plx
-  ply
+    plx
+    ply
 	rts
 
 ps2_add_to_buffer:
 	; Store a value in the buffer
-	ldy zp_ps2_bufwriteptr
-;	cpy zp_ps2_bufreadptr
+	ldy KEYB_WR_PTR
+;	cpy KEYB_RD_PTR
 ;	beq ps2_add_to_buffer_full ; no buffer space
 
 	; Store the character and update the buffer pointer
-	sta ps2_input_buffer, y
+	sta KEYB_BUFFER, y
 	iny
-	sty zp_ps2_bufwriteptr
+    cpy #KEYB_BUFFER_SIZE
+    bne @check_wr_size_end
+    ldy #0
+@check_wr_size_end:
+	sty KEYB_WR_PTR
 
 ps2_add_to_buffer_full:
 	rts
