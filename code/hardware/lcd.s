@@ -56,9 +56,9 @@ lcd_setup:
   jsr lcd_instruction
   
   lda #$00
-  sta LCD_BUF_IDX
-  sta LCD_COL
-  sta LCD_ROW
+  sta ZP_LCD_BUF_IDX
+  sta ZP_LCD_COL
+  sta ZP_LCD_ROW
   jsr lcd_setcursor
   
   ; init lcd buffer
@@ -71,9 +71,9 @@ lcd_setup:
   bne @init_buf
 
 ;  lda #<prompt            ; Load low byte of our 16-bit value
-;  sta LCD_STR_PTR
+;  sta ZP_LCD_STR_PTR
 ;  lda #>prompt            ; Load high byte of our 16-bit value
-;  sta LCD_STR_PTR + 1
+;  sta ZP_LCD_STR_PTR + 1
 ;  jsr print_str
   rts
 
@@ -226,23 +226,23 @@ lcd_writedata:
 lcd_clear:
   pha
   lda #$00
-  sta LCD_COL
-  sta LCD_ROW
+  sta ZP_LCD_COL
+  sta ZP_LCD_ROW
   lda #%00000001 ; Clear screen
   jsr lcd_instruction
   jsr lcd_setcursor
   pla
   rts
   
-lcd_setcursor: ; (LCD_COL, LCD_ROW)
+lcd_setcursor: ; (ZP_LCD_COL, ZP_LCD_ROW)
   pha
   phx
-  ldx LCD_ROW
+  ldx ZP_LCD_ROW
   cpx #LCDROWS
   beq lcdskipsetcursor ; dont wrap around if (col,row) out of range (less confusion)
   
   lda lcdrowstart, x
-  adc LCD_COL
+  adc ZP_LCD_COL
   ora #%10000000 ; Set DDRAM address
   jsr lcd_instruction
   
@@ -255,20 +255,20 @@ lcd_backspace:
   pha
   phx
   
-  lda LCD_COL
+  lda ZP_LCD_COL
   beq colzero
   dec
-  sta LCD_COL
+  sta ZP_LCD_COL
   bra backspaceexit
   
 colzero:
-  ldx LCD_ROW
+  ldx ZP_LCD_ROW
   beq backspaceexit
   dex
-  stx LCD_ROW
+  stx ZP_LCD_ROW
   lda #LCDCOLS
   dec
-  sta LCD_COL
+  sta ZP_LCD_COL
   
 backspaceexit:
   plx
@@ -279,7 +279,7 @@ backspaceexit:
 lcd_enter:
   phx
   
-  ldx LCD_ROW
+  ldx ZP_LCD_ROW
   inx
   cpx #LCDROWS
   bne lcd_enter_do
@@ -288,11 +288,11 @@ lcd_enter:
   jmp lcd_enter_end
   
 lcd_enter_do:
-  stx LCD_ROW
+  stx ZP_LCD_ROW
   lda lcdbufrowstart, x
-  sta LCD_BUF_IDX
+  sta ZP_LCD_BUF_IDX
   ldx #$00
-  stx LCD_COL
+  stx ZP_LCD_COL
   
 lcd_enter_end:
   plx
@@ -328,7 +328,7 @@ print_str:
   ldy #0
 
 print_next:
-  lda (LCD_STR_PTR), y
+  lda (ZP_LCD_STR_PTR), y
   beq print_exit
   jsr lcd_print_char
   iny
@@ -356,13 +356,13 @@ lcd_print_char_from_write_buf:  ; Aufruf aus lcd_write_buf raus
   jsr lcd_writedata
   
   ; move cursor to next cell
-  inc LCD_COL
+  inc ZP_LCD_COL
   lda #LCDCOLS
-  cmp LCD_COL
+  cmp ZP_LCD_COL
   bne exit_print_char
   lda #0
-  sta LCD_COL
-  inc LCD_ROW
+  sta ZP_LCD_COL
+  inc ZP_LCD_ROW
   
 exit_print_char:
   jsr lcd_setcursor ; to display next cell position
@@ -376,17 +376,17 @@ lcd_write_buf:
   pha
 
   ldx #LCDMAXCOL
-  cpx LCD_BUF_IDX
+  cpx ZP_LCD_BUF_IDX
   bne write_buf
 
   jsr scroll_lcd
   
 write_buf:
-  ldx LCD_BUF_IDX
+  ldx ZP_LCD_BUF_IDX
   pla
   sta LCD_BUFFER, x  ; store char into LCD_BUFFER
   
-  inc LCD_BUF_IDX
+  inc ZP_LCD_BUF_IDX
   
   plx
   rts
@@ -416,7 +416,7 @@ scroll_lcd:
   bne @init_line
 
   lda #LCDMAXSCROLL
-  sta LCD_BUF_IDX
+  sta ZP_LCD_BUF_IDX
   
   ; scroll lcd
   jsr lcd_clear

@@ -68,8 +68,8 @@ ps2_init:
     jsr ps2_write
 
 	; Initialise input buffer
-	stz KEYB_RD_PTR
-    stz KEYB_WR_PTR
+	stz ZP_KEYB_RD_PTR
+    stz ZP_KEYB_WR_PTR
 
 	; Prepare for the first character
 	jsr ps2_prepare_read_character
@@ -230,12 +230,12 @@ irq_via_ps2_sr:
 	; Make a signal to trigger the oscilloscope
 ;	sta VIA_PORTA
 
-	sta KEYB_RD_RESULT+1
+	sta ZP_KEYB_RD_RESULT+1
 	
 	; The start bit should have been zero
 	bmi irq_via_ps2_framingerror          ; bmi = branch if result negative => highest bit (start bit) is not 0
 
-	sta KEYB_RD_RESULT
+	sta ZP_KEYB_RD_RESULT
 
   ply                       ; restore y
   plx                       ; restore x
@@ -253,7 +253,7 @@ irq_via_ps2_t2:
 	; Make a signal to trigger the oscilloscope
 ;  sta VIA_PORTA
 
-	sta KEYB_RD_RESULT+2
+	sta ZP_KEYB_RD_RESULT+2
 
 	; The bottom bit is the stop bit, which should be set
 	ror
@@ -263,19 +263,19 @@ irq_via_ps2_t2:
 	; The parity will move to the bit 7 of A.
 	ror
   ror
-  rol KEYB_RD_RESULT
+  rol ZP_KEYB_RD_RESULT
 
 	; The bits of the result byte are now in reverse order - the non-IRQ code can deal with that though
 
 	; Check the parity - it should be odd
 	and #$80
-  eor KEYB_RD_RESULT
+  eor ZP_KEYB_RD_RESULT
   lsr
-  eor KEYB_RD_RESULT
-	sta KEYB_TMP
+  eor ZP_KEYB_RD_RESULT
+	sta ZP_KEYB_TMP
   lsr
   lsr
-  eor KEYB_TMP
+  eor ZP_KEYB_TMP
 	and #17
   beq irq_via_ps2_framingerror
 	cmp #17
@@ -285,11 +285,11 @@ irq_via_ps2_t2:
 
 	jsr ps2_prepare_read_character
 
-	lda KEYB_RD_RESULT
+	lda ZP_KEYB_RD_RESULT
 	jsr ps2_add_to_buffer
 
 	; Synthesize framing errors sometimes ("B" key)
-	lda KEYB_RD_RESULT
+	lda ZP_KEYB_RD_RESULT
 	cmp #$4c
   beq irq_via_ps2_causeframingerror
 
@@ -343,8 +343,8 @@ wait_for_ps2_read_from_buffer:
 @wait_for_ps2:
 	sei
 
-	ldy KEYB_RD_PTR
-	cpy KEYB_WR_PTR
+	ldy ZP_KEYB_RD_PTR
+	cpy ZP_KEYB_WR_PTR
 	bne ps2_read_from_buffer_gotchar
 
 	; The buffer is empty, wait for an interrupt
@@ -361,7 +361,7 @@ ps2_read_from_buffer_gotchar:
     bne @check_rd_size_end
     ldy #0
 @check_rd_size_end:
-	sty KEYB_RD_PTR
+	sty ZP_KEYB_RD_PTR
 
 	; The bits are backwards because the PS/2 protocol and 6522 shift register work in opposite ways
     lda keycode_reverse_lookup_table, x
@@ -372,8 +372,8 @@ ps2_read_from_buffer_gotchar:
 
 ps2_add_to_buffer:
 	; Store a value in the buffer
-	ldy KEYB_WR_PTR
-;	cpy KEYB_RD_PTR
+	ldy ZP_KEYB_WR_PTR
+;	cpy ZP_KEYB_RD_PTR
 ;	beq ps2_add_to_buffer_full ; no buffer space
 
 	; Store the character and update the buffer pointer
@@ -383,7 +383,7 @@ ps2_add_to_buffer:
     bne @check_wr_size_end
     ldy #0
 @check_wr_size_end:
-	sty KEYB_WR_PTR
+	sty ZP_KEYB_WR_PTR
 
 ps2_add_to_buffer_full:
 	rts
