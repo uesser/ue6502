@@ -235,8 +235,8 @@ keyb_write:
 	; Send next bit
 	rol
 	jsr keyb_write_bit
-	cpx #$ff
-	beq @keyb_write_bitloop_error    ; error
+;	cpx #$ff
+;	beq @keyb_write_bitloop_error    ; error
 
 	dex
 	bne @keyb_write_bitloop
@@ -245,24 +245,24 @@ keyb_write:
 	tya
 	ror
 	jsr keyb_write_bit
-	cpx #$ff
-	beq @keyb_write_bitloop_error    ; error
+;	cpx #$ff
+;	beq @keyb_write_bitloop_error    ; error
 
 	; Send the stop bit
 	sec
 	jsr keyb_write_bit
-	cpx #$ff
-	beq @keyb_write_bitloop_error    ; error
+;	cpx #$ff
+;	beq @keyb_write_bitloop_error    ; error
 
 	; Wait one more time
 	jsr keyb_write_bit
-	cpx #$ff
-	beq @keyb_write_bitloop_error    ; error
+;	cpx #$ff
+;	beq @keyb_write_bitloop_error    ; error
 
 	; init CB1 and CB2
-	lda KEYB_PCR
-	and #$1f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 1 => CB1 = Positive Active Edge
-	sta KEYB_PCR
+;	lda KEYB_PCR
+;	and #$1f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 1 => CB1 = Positive Active Edge
+;	sta KEYB_PCR
 	
 	lda #0
 	ply
