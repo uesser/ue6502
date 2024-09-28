@@ -11,41 +11,36 @@ KEYB_IFR   = VIA_IFR
 KEYB_T2C_L = VIA_T2C_L
 KEYB_T2C_H = VIA_T2C_H
 
-.macro PS2_PREPARE_READ_CHARACTER
+.macro KEYB_PREPARE_READ_CHARACTER
 	; Start SR
-	lda VIA_SR
+	lda KEYB_SR
 
 	; Set T2 to interrupt after 11 bits
 	lda #10
-	sta VIA_T2CL
-	stz VIA_T2CH
+	sta KEYB_T2C_L
+	stz KEYB_T2C_H
 .endmacro
 
-.macro PS2_ADD_TO_BUFFER
+.macro KEYB_ADD_TO_BUFFER
 	; Store a value in the buffer
-	ldx zp_ps2_bufwriteptr
-	cpx zp_ps2_bufreadptr
-	bne @ps2_add_to_buffer   ; if equal => buffer full
+	ldx ZP_KEYB_WR_PTR
+	cpx ZP_KEYB_RD_PTR
+	bne @keyb_add_to_buffer   ; if equal => buffer full
 
     ; TODO - bell 3 times (audio out)
-    bra @ps2_add_to_buffer_end
+    bra @keyb_add_to_buffer_end
 	
-@ps2_add_to_buffer:
+@keyb_add_to_buffer:
 	; Store the character and update the buffer pointer
-	sta ps2_input_buffer, x
-	inc zp_ps2_bufwriteptr
+	sta KEYB_BUFFER, x
+	inx
+    cpx #KEYB_BUFFER_SIZE
+    bne @wr_keyb_buf_wr_ptr
+    ldx #0
+@wr_keyb_buf_wr_ptr:
+    stx ZP_KEYB_WR_PTR
 
-@ps2_add_to_buffer_end:
-.endmacro
-
-; e.g. If CPU_FREQUENCY = 2 (MHz) we loop 44 times => 
-; 44 * 7 cycles (-1 at the end of the loop) + 2 fix cycles = 309 cycles => 309 * 0,0000005 (1 cycle = 5ns @ 2MHz) = 0,000154 = 154us
-.macro PS2_DELAY   ; wait at least 100us
-	ldx #CPU_FREQUENCY * 22                 ; 2
-@ps2_delay_loop:
-	nop                                     ;    2
-	dex                                     ;    2
-	bne @ps2_delay_loop                     ;    3 (while looping); 2 (at end of loop)
+@keyb_add_to_buffer_end:
 .endmacro
 
 .macro WAITPB6LOW
@@ -53,7 +48,7 @@ KEYB_T2C_H = VIA_T2C_H
 @wait_low:
     inx
     beq @WAITPB6LOW_break
-	bit VIA_PORTB
+	bit KEYB_PORT
 	bvs @wait_low
 @WAITPB6LOW_break:
     ; X-Register is 0 on break loop => error - no keyboard
@@ -64,7 +59,7 @@ KEYB_T2C_H = VIA_T2C_H
 @wait_high:
     inx
     beq @WAITPB6HIGH_break
-	bit VIA_PORTB
+	bit KEYB_PORT
 	bvc @wait_high
 @WAITPB6HIGH_break:
     ; X-Register is 0 on break loop => error - no keyboard
@@ -73,53 +68,43 @@ KEYB_T2C_H = VIA_T2C_H
 
 ;;;;; PS/2 initialisation
 
-ps2_init:
+keyb_init:
 	; Initialise the input buffer.  The empty state has the write pointer one ahead of the read pointer.
 	lda #1
-	sta zp_ps2_bufwriteptr
+	sta ZP_KEYB_WR_PTR
 
-	stz zp_ps2_bufreadptr
+	stz ZP_KEYB_RD_PTR
 	
 	; init CB1 and CB2
-	lda VIA_PCR
+	lda KEYB_PCR
 	and #$0f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 0 => CB1 = Negative Active Edge
-	sta VIA_PCR
+	sta KEYB_PCR
 
 	; Set PB6 of VIA port B to input, so clock floats high
-	lda VIA_DDRB
+	lda KEYB_DDR
 	and #$bf      ; set PB6 to low => PB6 is input
-	sta VIA_DDRB
+	sta KEYB_DDR
 
 	; Enable T2 counting pulses on PB6, and set SR in read mode, external clock (011)
 	lda #$2c
-	sta VIA_ACR
+	sta KEYB_ACR
 
 	; Disable interrupts except for T2 and SR
 	lda #$7f
-	sta VIA_IER
-	sta VIA_IFR
+	sta KEYB_IER
+	sta KEYB_IFR
 	lda #$80 + $24
-	sta VIA_IER
+	sta KEYB_IER
 
 	; Prepare for the first character
-	PS2_PREPARE_READ_CHARACTER   ; macro
+	KEYB_PREPARE_READ_CHARACTER   ; macro
 
 	; Some USB-compatible keyboards dont act as PS/2 keyboards unless we send a reset command to them first
 	lda #$ff
-	jsr ps2_write
+	jsr keyb_write
 	cmp #$ff
 	beq @no_keyb   ; accu = $ff means error, no keyboard present
 	
-	; TODO - check for ACK (fa) and BAT/SelfTest (aa) from keyboard after we sent ff
-		; FA - Acknowledge
-		; AA - BAT / Self Test Passed
-		; EE - Echo response
-		; FE - Resend request
-		; 00 - Error
-		; FF - Error
-    
-
-
     lda #0   ; no error
 
 @no_keyb:
@@ -129,7 +114,7 @@ ps2_init:
 ;;;;;; Write a byte to the PS/2 port - unbuffered
 
 
-ps2_write:
+keyb_write:
     phx
 	phy
     pha
@@ -143,24 +128,26 @@ ps2_write:
 	; Then can read acknowledgement from device
 	
 	; Clock low, data low
-	lda VIA_DDRB
+	lda KEYB_DDR
 	ora #$40          ; set PB6 as output
-	sta VIA_DDRB
-	lda VIA_PORTB
+	sta KEYB_DDR
+	lda KEYB_PORT
 	and #$bf
-	sta VIA_PORTB     ; set PB6 to low => set ps/2-clock to low
-	lda VIA_PCR
+	sta KEYB_PORT     ; set PB6 to low => set ps/2-clock to low
+	lda KEYB_PCR
 	ora #$c0          ; highest 3 bits (bit 7-5) set CB2 behaviour - 110 => Low output ; bit 4 = 0 => CB1 = Negative Active Edge
 	and #$cf          ; clear bit 5 and 4
-	sta VIA_PCR
+	sta KEYB_PCR
 
 	; Wait a while - at least 100us
-	PS2_DELAY        ; macro
+    ldy #0
+    ldx #1
+	jsr __kernel_sleep
 
 	; Let the clock float again
-	lda VIA_DDRB
+	lda KEYB_DDR
 	and #$bf          ; set PB6 as input
-	sta VIA_DDRB
+	sta KEYB_DDR
 
 	; Track odd parity
 	ldy #1
@@ -170,85 +157,85 @@ ps2_write:
 	
 	pla
 
-ps2_write_bitloop:
+keyb_write_bitloop:
 	; Send next bit
 	rol
-	jsr ps2_write_bit
+	jsr keyb_write_bit
 	cpx #$ff
-	beq @ps2_write_bitloop_error    ; error
+	beq @keyb_write_bitloop_error    ; error
 
 	dex
-	bne ps2_write_bitloop
+	bne keyb_write_bitloop
 
 	; Send the parity bit
 	tya
 	ror
-	jsr ps2_write_bit
+	jsr keyb_write_bit
 	cpx #$ff
-	beq @ps2_write_bitloop_error    ; error
+	beq @keyb_write_bitloop_error    ; error
 
 	; Send the stop bit
 	sec
-	jsr ps2_write_bit
+	jsr keyb_write_bit
 	cpx #$ff
-	beq @ps2_write_bitloop_error    ; error
+	beq @keyb_write_bitloop_error    ; error
 
 	; Wait one more time
-	jsr ps2_write_bit
+	jsr keyb_write_bit
 	cpx #$ff
-	beq @ps2_write_bitloop_error    ; error
+	beq @keyb_write_bitloop_error    ; error
 
 	; init CB1 and CB2
-	lda VIA_PCR
+	lda KEYB_PCR
 	and #$0f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 0 => CB1 = Negative Active Edge
-	sta VIA_PCR
+	sta KEYB_PCR
 	
 	lda #0
 	ply
 	plx
 	rts
 
-@ps2_write_bitloop_error:
+@keyb_write_bitloop_error:
     lda #$ff
 	ply
 	plx
 	rts
 	
-ps2_write_bit:
+keyb_write_bit:
 	pha
 
 	; The bit to write is in the carry
 
 	; Default to pull CB2 low
-	lda VIA_PCR
+	lda KEYB_PCR
 	ora #$c0          ; highest 3 bits (bit 7-5) set CB2 behaviour - 110 => Low output ; bit 4 = 0 => CB1 = Negative Active Edge
 	and #$cf          ; clear bit 5 and 4
 
 	; If next bit is clear, thats the right state for CB2
-	bcc @ps2_write_bit_clear   ; bcc = branch on carry clear (carry = 0)
+	bcc @keyb_write_bit_clear   ; bcc = branch on carry clear (carry = 0)
 
 	; Otherwise track parity and let CB2 float instead
 	iny
 
-	lda VIA_PCR
+	lda KEYB_PCR
 	and #$0f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 0 => CB1 = Negative Active Edge
 
-@ps2_write_bit_clear:
+@keyb_write_bit_clear:
 	; Wait for one tick from the device
     phx
 	WAITPB6HIGH
-	beq @ps2_write_bit_error      ; means X-Register is 0 => error, waited too long
+	beq @keyb_write_bit_error      ; means X-Register is 0 => error, waited too long
 	WAITPB6LOW
-	beq @ps2_write_bit_error      ; means X-Register is 0 => error, waited too long
+	beq @keyb_write_bit_error      ; means X-Register is 0 => error, waited too long
     plx
     
 	; Set the CB2 state
-	sta VIA_PCR
+	sta KEYB_PCR
 
 	pla
 	rts
 
-@ps2_write_bit_error:
+@keyb_write_bit_error:
     plx
     ldx #$ff
 
@@ -262,104 +249,109 @@ ps2_write_bit:
 KEYB_IRQ:
 SERVICE_KEYB:
 	; Check for VIA interrupts
-	bit VIA_IFR
-	bmi irq_via
+	bit KEYB_IFR
+	bmi irq_keyb
 	rti
 
-irq_via:
+irq_keyb:
 	pha
 
 	; Check for PS/2 related VIA interrupts
-	lda VIA_IFR
+	lda KEYB_IFR
 	and #$24
-	bne irq_via_ps2
+	bne irq_keyb_ps2
 
 	pla
 	rti
 
-irq_via_ps2:
+irq_keyb_ps2:
 	; It's either T2 or SR (shouldn't be both) - check for T2 first
 	cmp #$20
-	bcs irq_via_ps2_t2
+	bcs irq_keyb_t2
 
 	; Fall through to handle shift register interrupt
 
-irq_via_ps2_sr:
+irq_keyb_sr:
 	; Shift register interrupt happens after first 8 bits are read -
 	; that is, a start bit and the first seven data bits	
-	lda VIA_SR
+	lda KEYB_SR
 	
 	; The start bit should have been zero
-	bmi irq_via_ps2_framingerror
+	bmi irq_keyb_framingerror
 
-	sta zp_ps2_readresult
+	sta ZP_KEYB_RD_RESULT
 	
 	pla
 	rti
 
-irq_via_ps2_t2:
+irq_keyb_t2:
 	; T2 interrupt happens at the end of the character, read the last few bits, check parity, and add to buffer
     
     phx
 
 	; Read the SR again
-	lda VIA_SR
+	lda KEYB_SR
 
 	; The bottom bit is the stop bit, which should be set
 	ror
-	bcc irq_via_ps2_framingerror
+	bcc irq_keyb_framingerror
 
 	; Next is parity - then the last data bit.  Add the data bit to the result byte.
 	; The parity will move to the bit 7 of A.
 	ror
 	ror
-	rol zp_ps2_readresult
+	rol ZP_KEYB_RD_RESULT
 
 	; The bits of the result byte are now in reverse order - the non-IRQ code can deal with that though
 
 	; Check the parity - it should be odd
 	and #$80
-	eor zp_ps2_readresult
+	eor ZP_KEYB_RD_RESULT
 	lsr
-	eor zp_ps2_readresult
-	sta zp_temp
+	eor ZP_KEYB_RD_RESULT
+	sta ZP_KEYB_TMP
 	lsr
 	lsr 
-	eor zp_temp
+	eor ZP_KEYB_TMP
 	and #17
-	beq irq_via_ps2_framingerror
+	beq irq_keyb_framingerror
 	cmp #17
-	beq irq_via_ps2_framingerror
+	beq irq_keyb_framingerror
 	
 	; No framing errors, and correct parity, so get ready for the next character, and store this one
 
-	PS2_PREPARE_READ_CHARACTER   ; macro
+	KEYB_PREPARE_READ_CHARACTER   ; macro
 
-	lda zp_ps2_readresult
-	PS2_ADD_TO_BUFFER   ; macro
+	lda ZP_KEYB_RD_RESULT
+	KEYB_ADD_TO_BUFFER   ; macro
 
 	; Done
     plx
 	pla
 	rti
 
-irq_via_ps2_framingerror:
+irq_keyb_framingerror:
+    phy
+    
 	; Interrupt the device to resynchronise
 	lda #$40
-	sta VIA_DDRB     ; clock low
+	sta KEYB_DDR     ; clock low
 
 	; Wait a while - at least 100us
-	PS2_DELAY        ; macro
+    ldy #0
+    ldx #1
+	jsr __kernel_sleep
 
 	lda #0
-	sta VIA_DDRB     ; release clock
+	sta KEYB_DDR     ; release clock
 
 	lda #$ff
-	PS2_ADD_TO_BUFFER   ; macro
+	KEYB_ADD_TO_BUFFER   ; macro
 
 	; Prepare for the next character
-	PS2_PREPARE_READ_CHARACTER   ; macro
+	KEYB_PREPARE_READ_CHARACTER   ; macro
 
+    ply
     plx
 	pla
 	rti
@@ -368,26 +360,26 @@ irq_via_ps2_framingerror:
 ;;;;;; Read a byte from the PS/2 buffer
 
 
-ps2_buffer_read__wait:
+keyb_buffer_read__wait:
     phy
-@ps2_wait_for_scancode:	
-	ldy zp_ps2_bufreadptr
+@keyb_wait_for_scancode:	
+	ldy ZP_KEYB_RD_PTR
 	iny
 
 	sei
-	cpy zp_ps2_bufwriteptr
-	bne ps2_read_from_buffer_gotchar
+	cpy ZP_KEYB_WR_PTR
+	bne keyb_read_from_buffer_gotchar
 
 	; The buffer is empty, wait for an interrupt
 	wai
 	cli
-	bra @ps2_wait_for_scancode
+	bra @keyb_wait_for_scancode
 
-ps2_read_from_buffer_gotchar:
+keyb_read_from_buffer_gotchar:
 	cli
 
-	lda ps2_input_buffer, y
-	sty zp_ps2_bufreadptr
+	lda KEYB_BUFFER, y
+	sty ZP_KEYB_RD_PTR
 
 	; The bits are backwards because the PS/2 protocol and 6522 shift register work in opposite ways
     tay

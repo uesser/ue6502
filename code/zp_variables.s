@@ -10,10 +10,8 @@ ZP_LCD_BUF_IDX = $14         ; 1 byte index
 ; Keyboard
 ZP_KEYB_TMP = $20            ; 1 byte memory
 ZP_KEYB_RD_RESULT = $21      ; 3 byte memory
-ZP_KEYB_RD_RESULT_2 = $22
-ZP_KEYB_RD_RESULT_3 = $23
-ZP_KEYB_WR_PTR = $24         ; 1 byte memory
-ZP_KEYB_RD_PTR = $25         ; 1 byte memory
+ZP_KEYB_WR_PTR = $23         ; 1 byte memory
+ZP_KEYB_RD_PTR = $24         ; 1 byte memory
 
 ;
 ; ACIA (RS232)

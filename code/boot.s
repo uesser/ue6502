@@ -1,15 +1,16 @@
 ; Boot ROM for 6502 computer. Provides shell which can access test programs.
 
+.segment "KERNEL"
+
 .include "./version.s"
 .include "./zp_variables.s"
 .include "./buffer.s"
+.include "./kernelUtils.s"
 .include "hardware/speaker.s"
 .include "hardware/acia.s"
 .include "hardware/via.s"
 .include "hardware/keyboard.s"
 .include "hardware/lcd.s"
-
-.segment "CODE"
 
 reset:
   ; Computer setup
@@ -20,13 +21,41 @@ reset:
   
 ;  jsr via_setup
 ;  jsr via_setup_timer
-  jsr ps2_init
-  jsr lcd_setup
-  
   jsr acia_setup
 
+  jsr lcd_setup
+  jsr keyb_init
+  
   cli
 
+  ; TODO - check for ACK (fa) and BAT/SelfTest (aa) from keyboard after we sent ff
+    ; FA - Acknowledge
+    ; AA - BAT / Self Test Passed
+    ; EE - Echo response
+    ; FE - Resend request
+    ; 00 - Error
+    ; FF - Error
+    
+  cmp #$ff                    ; error result from keyb_init
+  beq @key_not_attached
+  jsr keyb_buffer_read__wait
+  cmp #$fa
+  bne @keyb_error
+  jsr keyb_buffer_read__wait
+  cmp #$aa
+  bne @keyb_error
+  lda #$00
+  bra @welcome
+  
+@keyb_error:
+  lda #$01  
+  bra @welcome
+
+@key_not_attached:  
+  lda #$02
+
+@welcome:
+  pha
   ; Print welcome message
   jsr shell_newline_ACIA
   ldx #0
@@ -37,12 +66,46 @@ reset:
   inx
   jmp @shell_welcome_char
 @shell_welcome_done:
-jsr shell_newline
+  pla
+  cmp #$02           ; keyboard not attached
+  beq @no_keyb
+  cmp #$01           ; keyboard error
+  beq @keyb_err
+
+  ldx #0
+@keyb_ok_char:
+  lda keyb_ok, X
+  beq @keyb_feedback_done
+  jsr kernel_putc
+  inx
+  jmp @keyb_ok_char
+
+@no_keyb:
+  ldx #0
+@keyb_no_keyb_char:
+  lda keyb_no_keyb, X
+  beq @keyb_feedback_done
+  jsr kernel_putc
+  inx
+  jmp @keyb_no_keyb_char
+
+@keyb_err:
+  ldx #0
+@keyb_error_char:
+  lda keyb_err, X
+  beq @keyb_feedback_done
+  jsr kernel_putc
+  inx
+  jmp @keyb_error_char
+
+@keyb_feedback_done:
+  
+  jsr shell_newline
 
 
 
 keyboard_check:
-  jsr wait_for_ps2_read_from_buffer
+  jsr keyb_buffer_read__wait
   jsr hex_print_byte  
   jmp keyboard_check
 
@@ -143,7 +206,10 @@ shell_command_test:
   jmp (built_in_main, X) ; jump to this main method
 
 shell_not_found: .asciiz "Command not found"
-shell_welcome: .asciiz "65C02 Ready"
+shell_welcome: .asciiz "65C02 Rdy"
+keyb_ok: .asciiz " (keyb ok)"
+keyb_no_keyb: .asciiz " (no keyb)"
+keyb_err: .asciiz " (keyb err)"
 shell_prompt: .asciiz "# "
 
 shell_newline:
