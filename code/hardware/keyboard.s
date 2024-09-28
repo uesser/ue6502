@@ -13,6 +13,10 @@ KEYB_T2C_H = VIA_T2C_H
 
 .macro KEYB_PREPARE_READ_CHARACTER
 	; Start SR
+	lda #$20
+    sta KEYB_ACR
+	lda #$2c
+    sta KEYB_ACR
 	lda KEYB_SR
 
 	; Set T2 to interrupt after 11 bits
@@ -47,7 +51,7 @@ KEYB_T2C_H = VIA_T2C_H
     ldx #0
 @wait_low:
     inx
-    beq @WAITPB6LOW_break
+;    beq @WAITPB6LOW_break
 	bit KEYB_PORT
 	bvs @wait_low
 @WAITPB6LOW_break:
@@ -58,12 +62,73 @@ KEYB_T2C_H = VIA_T2C_H
     ldx #0
 @wait_high:
     inx
-    beq @WAITPB6HIGH_break
+;    beq @WAITPB6HIGH_break
 	bit KEYB_PORT
 	bvc @wait_high
 @WAITPB6HIGH_break:
     ; X-Register is 0 on break loop => error - no keyboard
 .endmacro
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+ps2_prepare_read_character:
+	; Start SR
+	lda #$20 + $00
+    sta KEYB_ACR
+	lda #$20 + $0c
+    sta KEYB_ACR
+	lda KEYB_SR     ; also sets back the interrupt flag in IFR
+	
+  ; Make a signal to trigger the oscilloscope
+;	sta VIA_PORTA
+
+	; Set T2 to interrupt after 11 bits
+	lda #10
+    sta KEYB_T2C_L
+    stz KEYB_T2C_H
+	rts
+
+delay_ps2:
+	phx
+	ldx #0
+@delayloop:
+	nop
+    dex
+    bne @delayloop
+	plx
+	rts
+
+waitpb6low:
+	bit KEYB_PORT
+    bvs waitpb6low
+	rts
+
+waitpb6high:
+	bit KEYB_PORT
+    bvc waitpb6high
+	rts
+
+ps2_add_to_buffer:
+	; Store a value in the buffer
+	ldx ZP_KEYB_WR_PTR
+	cpx ZP_KEYB_RD_PTR
+	bne @keyb_add_to_buffer   ; if equal => buffer full
+
+    ; TODO - bell 3 times (audio out)
+    bra @keyb_add_to_buffer_end
+	
+@keyb_add_to_buffer:
+	; Store the character and update the buffer pointer
+	sta KEYB_BUFFER, x
+	inx
+    cpx #KEYB_BUFFER_SIZE
+    bne @wr_keyb_buf_wr_ptr
+    ldx #0
+@wr_keyb_buf_wr_ptr:
+    stx ZP_KEYB_WR_PTR
+
+@keyb_add_to_buffer_end:
+    rts
 
 
 ;;;;; PS/2 initialisation
@@ -76,28 +141,20 @@ keyb_init:
 	stz ZP_KEYB_RD_PTR
 	
 	; init CB1 and CB2
-	lda KEYB_PCR
-	and #$0f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 0 => CB1 = Negative Active Edge
-	sta KEYB_PCR
+;	lda KEYB_PCR
+;	ora #$10
+;	and #$1f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 1 => CB1 = Positive Active Edge
+;	sta KEYB_PCR
 
-	; Set PB6 of VIA port B to input, so clock floats high
-	lda KEYB_DDR
-	and #$bf      ; set PB6 to low => PB6 is input
-	sta KEYB_DDR
+	; Set PB6 of KEYB port to input, so clock floats high
+;	lda KEYB_DDR
+;	and #$bf      ; set PB6 to low => PB6 is input
+;	sta KEYB_DDR
+    stz KEYB_DDR
 
 	; Enable T2 counting pulses on PB6, and set SR in read mode, external clock (011)
 	lda #$2c
 	sta KEYB_ACR
-
-	; Disable interrupts except for T2 and SR
-	lda #$7f
-	sta KEYB_IER
-	sta KEYB_IFR
-	lda #$80 + $24
-	sta KEYB_IER
-
-	; Prepare for the first character
-	KEYB_PREPARE_READ_CHARACTER   ; macro
 
 	; Some USB-compatible keyboards dont act as PS/2 keyboards unless we send a reset command to them first
 	lda #$ff
@@ -105,6 +162,16 @@ keyb_init:
 	cmp #$ff
 	beq @no_keyb   ; accu = $ff means error, no keyboard present
 	
+	; Prepare for the first character
+	jsr ps2_prepare_read_character
+
+	; Disable interrupts except for T2 and SR
+	lda #$7f
+	sta KEYB_IER
+	sta KEYB_IFR
+	lda #$A4       ; $80 + $24
+	sta KEYB_IER
+
     lda #0   ; no error
 
 @no_keyb:
@@ -128,26 +195,33 @@ keyb_write:
 	; Then can read acknowledgement from device
 	
 	; Clock low, data low
-	lda KEYB_DDR
-	ora #$40          ; set PB6 as output
-	sta KEYB_DDR
-	lda KEYB_PORT
-	and #$bf
-	sta KEYB_PORT     ; set PB6 to low => set ps/2-clock to low
-	lda KEYB_PCR
-	ora #$c0          ; highest 3 bits (bit 7-5) set CB2 behaviour - 110 => Low output ; bit 4 = 0 => CB1 = Negative Active Edge
-	and #$cf          ; clear bit 5 and 4
-	sta KEYB_PCR
+;	lda KEYB_PORT
+;	and #$bf
+;	sta KEYB_PORT     ; set PB6 to low => set ps/2-clock to low
+;	lda KEYB_DDR
+;	ora #$40          ; set PB6 as output
+;	sta KEYB_DDR
+;	lda KEYB_PCR
+;	ora #$c0          ; highest 3 bits (bit 7-5) set CB2 behaviour - 110 => Low output
+;	sta KEYB_PCR
+	stz KEYB_PORT
+    ldx #$40           ; set PB6
+    stx KEYB_DDR       ; as output
+    lda KEYB_PCR       ; set CB2
+	ora #$c0           ; to low output
+    sta KEYB_PCR
 
 	; Wait a while - at least 100us
-    ldy #0
-    ldx #1
-	jsr __kernel_sleep
+;    ldy #0
+;    ldx #1
+;    jsr __kernel_sleep
+	jsr delay_ps2
 
 	; Let the clock float again
-	lda KEYB_DDR
-	and #$bf          ; set PB6 as input
-	sta KEYB_DDR
+;	lda KEYB_DDR
+;	and #$bf          ; set PB6 as input
+;	sta KEYB_DDR
+    stz KEYB_DDR
 
 	; Track odd parity
 	ldy #1
@@ -157,7 +231,7 @@ keyb_write:
 	
 	pla
 
-keyb_write_bitloop:
+@keyb_write_bitloop:
 	; Send next bit
 	rol
 	jsr keyb_write_bit
@@ -165,7 +239,7 @@ keyb_write_bitloop:
 	beq @keyb_write_bitloop_error    ; error
 
 	dex
-	bne keyb_write_bitloop
+	bne @keyb_write_bitloop
 
 	; Send the parity bit
 	tya
@@ -187,7 +261,7 @@ keyb_write_bitloop:
 
 	; init CB1 and CB2
 	lda KEYB_PCR
-	and #$0f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 0 => CB1 = Negative Active Edge
+	and #$1f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 1 => CB1 = Positive Active Edge
 	sta KEYB_PCR
 	
 	lda #0
@@ -208,8 +282,7 @@ keyb_write_bit:
 
 	; Default to pull CB2 low
 	lda KEYB_PCR
-	ora #$c0          ; highest 3 bits (bit 7-5) set CB2 behaviour - 110 => Low output ; bit 4 = 0 => CB1 = Negative Active Edge
-	and #$cf          ; clear bit 5 and 4
+	ora #$c0          ; highest 3 bits (bit 7-5) set CB2 behaviour - 110 => Low output
 
 	; If next bit is clear, thats the right state for CB2
 	bcc @keyb_write_bit_clear   ; bcc = branch on carry clear (carry = 0)
@@ -217,17 +290,20 @@ keyb_write_bit:
 	; Otherwise track parity and let CB2 float instead
 	iny
 
-	lda KEYB_PCR
-	and #$0f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 0 => CB1 = Negative Active Edge
+	and #$1f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 1 => CB1 = Positive Active Edge
 
 @keyb_write_bit_clear:
 	; Wait for one tick from the device
-    phx
-	WAITPB6HIGH
-	beq @keyb_write_bit_error      ; means X-Register is 0 => error, waited too long
-	WAITPB6LOW
-	beq @keyb_write_bit_error      ; means X-Register is 0 => error, waited too long
-    plx
+;    phx
+;	WAITPB6HIGH
+;	cpx #0
+;	beq @keyb_write_bit_error      ; means X-Register is 0 => error, waited too long
+;	WAITPB6LOW
+;	cpx #0
+;	beq @keyb_write_bit_error      ; means X-Register is 0 => error, waited too long
+;    plx
+	jsr waitpb6high
+    jsr waitpb6low
     
 	; Set the CB2 state
 	sta KEYB_PCR
@@ -320,10 +396,10 @@ irq_keyb_t2:
 	
 	; No framing errors, and correct parity, so get ready for the next character, and store this one
 
-	KEYB_PREPARE_READ_CHARACTER   ; macro
+	jsr ps2_prepare_read_character
 
 	lda ZP_KEYB_RD_RESULT
-	KEYB_ADD_TO_BUFFER   ; macro
+	jsr ps2_add_to_buffer
 
 	; Done
     plx
@@ -334,22 +410,23 @@ irq_keyb_framingerror:
     phy
     
 	; Interrupt the device to resynchronise
-	lda #$40
+	lda KEYB_DDR
+	ora #$40
 	sta KEYB_DDR     ; clock low
 
 	; Wait a while - at least 100us
     ldy #0
     ldx #1
-	jsr __kernel_sleep
+    jsr __kernel_sleep
 
-	lda #0
+	and #$bf
 	sta KEYB_DDR     ; release clock
 
-	lda #$ff
-	KEYB_ADD_TO_BUFFER   ; macro
-
 	; Prepare for the next character
-	KEYB_PREPARE_READ_CHARACTER   ; macro
+	jsr ps2_prepare_read_character
+
+	lda #$ff
+	jsr ps2_add_to_buffer
 
     ply
     plx

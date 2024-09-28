@@ -1,3 +1,1 @@
-.segment "KERNEL"
-
-version: .asciiz "Version 0.2.0"
+version: .asciiz "Version 0.2.1"
