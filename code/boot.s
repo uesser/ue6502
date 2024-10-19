@@ -3,6 +3,7 @@
 .segment "KERNEL"
 
 .include "./version.s"
+.include "./constants.s"
 .include "./zp_variables.s"
 .include "./buffer.s"
 .include "./kernelUtils.s"
@@ -28,34 +29,7 @@ reset:
   
   cli
 
-  ; TODO - check for ACK (fa) and BAT/SelfTest (aa) from keyboard after we sent ff
-    ; FA - Acknowledge
-    ; AA - BAT / Self Test Passed
-    ; EE - Echo response
-    ; FE - Resend request
-    ; 00 - Error
-    ; FF - Error
-    
-  cmp #$ff                    ; error result from keyb_init
-  beq @key_not_attached
-  jsr keyb_buffer_read__wait
-  cmp #$fa
-  bne @keyb_error
-  jsr keyb_buffer_read__wait
-  cmp #$aa
-  bne @keyb_error
-  lda #$00
-  bra @welcome
-  
-@keyb_error:
-  lda #$01  
-  bra @welcome
-
-@key_not_attached:  
-  lda #$02
-
 @welcome:
-  pha
   ; Print welcome message
   jsr shell_newline_ACIA
   ldx #0
@@ -66,7 +40,9 @@ reset:
   inx
   jmp @shell_welcome_char
 @shell_welcome_done:
-  pla
+
+  ; print keyboard init result (no keyb, keyb err, keyb ok)
+  lda ZP_KEYB_INIT_RESULT
   cmp #$02           ; keyboard not attached
   beq @no_keyb
   cmp #$01           ; keyboard error
@@ -612,36 +588,36 @@ isr_jump_table:                  ; 10 possible interrupt sources
 .word nop_isr               ; 11th option for when no source is triggering the interrupt
 
 irq:
-  pha                         ; save Akku to stack
-  phx                         ; save x to stack
-  phy                         ; save y to stack
-;  ldx IRQ_CONTROLLER          ; read interrupt controller to find highest-priority interrupt to service
-;  jmp (isr_jump_table, X)     ; jump to matching service routine
+    pha                         ; save Akku to stack
+    phx                         ; save x to stack
+    phy                         ; save y to stack
+;    ldx IRQ_CONTROLLER          ; read interrupt controller to find highest-priority interrupt to service
+;    jmp (isr_jump_table, X)     ; jump to matching service routine
 
-   bit VIA_IFR                 ; Check 6522 VIA1 status register without loading. 
-   bpl irq_return              ; If it not caused the interrupt, branch to exit IRQ.
-   jmp SERVICE_KEYB            ; Handle 6522 VIA.
+    bit VIA_IFR                 ; Check 6522 VIA1 status register without loading. 
+    bpl irq_return              ; If it not caused the interrupt, branch to exit IRQ.
+    jmp SERVICE_KEYB            ; Handle 6522 VIA.
 
 irq_return:
-  ply                       ; restore y
-  plx                       ; restore x
-  pla                       ; restore Akku
-  rti
+    ply                       ; restore y
+    plx                       ; restore x
+    pla                       ; restore Akku
+    rti
 
 nmi:
-  pha                         ; save Akku to stack
-  phx                         ; save x to stack
-  phy                         ; save y to stack
+    pha                         ; save Akku to stack
+    phx                         ; save x to stack
+    phy                         ; save y to stack
 
-  bit ACIA_STATUS             ; Check 6551 ACIA status register without loading.
-  bpl nmi_return              ; If it not caused the interrupt, branch to exit NMI.
-  jmp SERVICE_ACIA            ; Handle 6551 ACIA.
+    bit ACIA_STATUS             ; Check 6551 ACIA status register without loading.
+    bpl nmi_return              ; If it not caused the interrupt, branch to exit NMI.
+    jmp SERVICE_ACIA            ; Handle 6551 ACIA.
 
 nmi_return:
-  ply                       ; restore y
-  plx                       ; restore x
-  pla                       ; restore Akku
-  rti
+    ply                       ; restore y
+    plx                       ; restore x
+    pla                       ; restore Akku
+    rti
 
 .segment "VECTORS"
 .word nmi

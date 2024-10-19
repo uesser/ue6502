@@ -5,8 +5,6 @@ E  = %01000000
 RW = %00100000
 RS = %00010000
 
-CPUFREQUENCY = 2 ; clock frequency in MHz for delay subroutine
-
 LCD_FIRST_LINE = 0
 LCD_SECOND_LINE = 20
 
@@ -105,7 +103,7 @@ lcdbusy:
   rts
   
 delay_lcd:
-  ldx #CPUFREQUENCY
+  ldx #CPU_FREQUENCY
 @cpuloop:
   ; http://forum.6502.org/viewtopic.php?p=62581#p62581
   ; delay 9*(256*A+Y)+8 cycles
