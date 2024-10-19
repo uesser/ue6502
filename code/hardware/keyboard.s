@@ -27,42 +27,42 @@ KEYB_T2C_H = VIA_T2C_H
 .endmacro
 
 .macro KEYB_ADD_TO_BUFFER
-    .local @keyb_add_to_buffer
-    .local @wr_keyb_buf_wr_ptr
-    .local @keyb_add_to_buffer_end
+    .local katb_add
+    .local katb_wr_ptr
+    .local katb_end
 	; Store a value in the buffer
     ldy ZP_KEYB_WR_PTR
     cpy ZP_KEYB_RD_PTR
-    bne @keyb_add_to_buffer   ; if equal => buffer full
+    bne katb_add            ; if equal => buffer full
 
     ; TODO - bell 3 times (audio out)
-    bra @keyb_add_to_buffer_end
+    bra katb_end
 	
-@keyb_add_to_buffer:
+katb_add:
 	; Store the character and update the buffer pointer
     sta KEYB_BUFFER, y
     iny
     cpy #KEYB_BUFFER_SIZE
-    bne @wr_keyb_buf_wr_ptr
+    bne katb_wr_ptr
     ldy #0
-@wr_keyb_buf_wr_ptr:
+katb_wr_ptr:
     sty ZP_KEYB_WR_PTR
 
-@keyb_add_to_buffer_end:
+katb_end:
 .endmacro	
 
 .macro WAITPB6HIGH
-    .local @waitpb6high
-@waitpb6high:
+    .local wait
+wait:
     bit KEYB_PORT
-    bvc @waitpb6high
+    bvc wait
 .endmacro
 
 .macro WAITPB6LOW
-    .local @waitpb6low
-@waitpb6low:
+    .local wait
+wait:
     bit KEYB_PORT
-    bvs @waitpb6low
+    bvs wait
 .endmacro
 
 
@@ -75,11 +75,19 @@ keyb_init:
     sta ZP_KEYB_WR_PTR
     stz ZP_KEYB_RD_PTR
 
-    ; Set VIA port B to all inputs, so clock floats high
-    stz KEYB_DDR
+	; init CB1 and CB2
+	lda KEYB_PCR
+	ora #$10
+	and #$1f   ; highest 3 bits (bit 7-5) set CB2 behaviour - 000 => Input-negative active edge; bit 4 = 1 => CB1 = Positive Active Edge
+	sta KEYB_PCR
 
-    ; Enable T2 counting pulses on PB6, and set SR in read mode, external clock (011)
-    lda #$20 + $0c
+	; Set PB6 of KEYB port to input, so clock floats high
+	lda KEYB_DDR
+	and #%10111111      ; set PB6 to low => PB6 is input
+	sta KEYB_DDR
+
+	; Enable T2 counting pulses on PB6, and set SR in read mode, external clock (011)
+	lda #$2c
     sta KEYB_ACR
 
     ; Some USB-compatible keyboards dont act as PS/2 keyboards unless we send a reset command to them first
@@ -112,6 +120,8 @@ keyb_init:
 
 
 ps2_write:
+    phx
+    phy
     ; Write a byte to the PS/2 port - bitbanging it for now, but it should be possible to use the shift register
 
     ; Pull clock low, pull data low, let clock go high, wait one tick
@@ -119,21 +129,28 @@ ps2_write:
     ; Then send parity bit and stop bit
     ; Then can read acknowledgement from device
   
-    ; Clock low, data low
-    stz KEYB_PORT
-    ldx #$40           ; set PB6
-    stx KEYB_DDR       ; as output
+	; Clock low, data low
     pha
-    lda KEYB_PCR       ; set CB2
-    ora #$c0           ; to low output
+    lda KEYB_PORT
+    and #%10111111
+	sta KEYB_PORT       ; set PB6 low
+    lda KEYB_DDR
+    ora #%01000000
+    sta KEYB_DDR        ; set PB6 as output
+    lda KEYB_PCR        ; set CB2
+	ora #$c0            ; to low output
     sta KEYB_PCR
-    pla
   
-    ; Wait a while
-    jsr delay_ps2
+	; Wait a while
+    ldy #0
+    ldx #1              ; sleep 100us
+    jsr __kernel_sleep
 
-    ; Let the clock float again
-    stz KEYB_DDR
+ 	; Let the clock float again
+    lda KEYB_DDR
+    and #%10111111
+	sta KEYB_DDR        ; set PB6 as input
+    pla
 
     ; Track odd parity
     ldy #1
@@ -161,6 +178,8 @@ ps2_write_bitloop:
     ; Wait one more time
     jsr ps2_write_bit
 
+    ply
+    plx
     rts
     
 ps2_write_bit:
@@ -197,15 +216,15 @@ ps2_write_bit_clear:
 KEYB_IRQ:
 SERVICE_KEYB:
     ; Check for VIA interrupts
-    bit KEYB_IFR
-    bmi irq_via
+;    bit KEYB_IFR
+;    bmi irq_via
+;
+;    ply                       ; restore y
+;    plx                       ; restore x
+;    pla                       ; restore Akku
+;    rti
 
-    ply                       ; restore y
-    plx                       ; restore x
-    pla                       ; restore Akku
-    rti
-
-irq_via:
+;irq_via:
     ; Check for PS/2 related VIA interrupts
     lda KEYB_IFR
     and #$24                  ; Timer-2 ($20) or ShiftRegister ($04) interrupt
@@ -287,10 +306,16 @@ irq_via_ps2_t2:
 
 irq_via_ps2_framingerror:
     ; Interrupt the device to resynchronise
-    lda #$40                  ; PB6 as output
+    lda KEYB_DDR
+	ora #%01000000            ; PB6 as output
     sta KEYB_DDR              ; clock low
-    jsr delay_ps2             ; at least 100us
-    lda #0
+
+	; Wait a while
+    ldy #0
+    ldx #1                    ; sleep 100us
+    jsr __kernel_sleep
+
+	and #%10111111
     sta KEYB_DDR              ; release clock
 
     ; Prepare for the next character
@@ -344,15 +369,6 @@ keyb_buffer_read__wait:
 	ply
 	rts
 
-delay_ps2:
-    phx
-    ldx #0
-@delayloop:
-    nop
-  dex
-  bne @delayloop
-    plx
-    rts
 
 keycode_reverse_lookup_table:
   .byte $00, $80, $40, $c0, $20, $a0, $60, $e0
