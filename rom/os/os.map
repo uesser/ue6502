@@ -1,0 +1,309 @@
+Modules list:
+-------------
+kernel.o:
+    CODE              Offs=000000  Size=00037B  Align=00001  Fill=0000
+    RODATA            Offs=000000  Size=000000  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000000  Size=000000  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+    VECTORS           Offs=000000  Size=000006  Align=00001  Fill=0000
+sysram.o:
+    CODE              Offs=00037B  Size=000000  Align=00001  Fill=0000
+    RODATA            Offs=000000  Size=000011  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000000  Size=000011  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+    SYSRAM            Offs=000000  Size=000193  Align=00001  Fill=0000
+kernelUtils.o:
+    CODE              Offs=00037B  Size=00001A  Align=00001  Fill=0000
+    RODATA            Offs=000011  Size=000000  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000011  Size=000000  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+via.o:
+    CODE              Offs=000395  Size=00006D  Align=00001  Fill=0000
+    RODATA            Offs=000011  Size=000000  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000011  Size=000000  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+acia.o:
+    CODE              Offs=000402  Size=000076  Align=00001  Fill=0000
+    RODATA            Offs=000011  Size=000000  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000011  Size=000000  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+keyboard.o:
+    CODE              Offs=000478  Size=0002AF  Align=00001  Fill=0000
+    RODATA            Offs=000011  Size=000000  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000011  Size=000000  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+    RODATA_AL         Offs=000000  Size=000290  Align=00001  Fill=0000
+lcd.o:
+    CODE              Offs=000727  Size=000209  Align=00001  Fill=0000
+    RODATA            Offs=000011  Size=000000  Align=00001  Fill=0000
+    BSS               Offs=000000  Size=000000  Align=00001  Fill=0000
+    DATA              Offs=000000  Size=000000  Align=00001  Fill=0000
+    ZEROPAGE          Offs=000011  Size=000000  Align=00001  Fill=0000
+    NULL              Offs=000000  Size=000000  Align=00001  Fill=0000
+    RODATA_AL         Offs=000290  Size=000018  Align=00001  Fill=0000
+
+
+Segment list:
+-------------
+Name                   Start     End    Size  Align
+----------------------------------------------------
+DATA                  000000  000000  000000  00001
+NULL                  000000  000000  000000  00001
+ZEROPAGE              000000  000010  000011  00001
+SYSRAM                000200  000392  000193  00001
+BSS                   000400  000400  000000  00001
+CODE                  00C000  00C92F  000930  00001
+RODATA                00C930  00C940  000011  00001
+RODATA_AL             00CA00  00CCA7  0002A8  00001
+VECTORS               00FFFA  00FFFF  000006  00001
+
+
+Exports list by name:
+---------------------
+ACIA_BUFFER               000200 RLA    ACIA_get_byte             00C418 RLA    
+ACIA_ihandler             00C45C RLA    ACIA_init                 00C402 RLA    
+ACIA_send_byte            00C436 RLA    ACIA_send_string          00C445  LA    
+KEYB_BUFFER               000280 RLA    KEYB_get__wait            00C4BD RLA    
+KEYB_ihandler             00C679 RLA    KEYB_init                 00C478 RLA    
+KEYB_is_alt               00C4EE  LA    KEYB_is_altgr             00C4F3  LA    
+KEYB_is_capslock          00C4E4  LA    KEYB_is_ctrl              00C4E9  LA    
+KEYB_is_fn                00C4F8  LA    KEYB_is_shift             00C4DF  LA    
+LCD_BUFFER                000300 RLA    LCD_backspace             00C858  LA    
+LCD_clear                 00C832  LA    LCD_init                  00C727 RLA    
+LCD_newline               00C875 RLA    LCD_print_char            00C8BE RLA    
+LCD_print_hex             00C892  LA    LCD_print_str             00C8AD  LA    
+VIA_ihandler              00C3E5  LA    VIA_init                  00C395  LA    
+ZP_ACIA_RD_PTR            00000D RLZ    ZP_ACIA_SPTR              00000E RLZ    
+ZP_ACIA_WR_PTR            00000C RLZ    ZP_KEYB_FLAGS             00000B RLZ    
+ZP_KEYB_INIT_RESULT       000009 RLZ    ZP_KEYB_LEDS              00000A RLZ    
+ZP_KEYB_RD_PTR            000008 RLZ    ZP_KEYB_RD_RESULT         000006 RLZ    
+ZP_KEYB_TMP               000005 RLZ    ZP_KEYB_WR_PTR            000007 RLZ    
+ZP_LCD_BUF_IDX            000004 RLZ    ZP_LCD_COL                000000 RLZ    
+ZP_LCD_ROW                000001 RLZ    ZP_LCD_STR_PTR            000002 RLZ    
+ZP_LCD_STR_PTR_HI         000003  LZ    ZP_VIA_TIMER_INT_CNT      000010 RLZ    
+__BSS_LOAD__              000400  LA    __BSS_RUN__               000400  LA    
+__BSS_SIZE__              000000  EA    __CODE_LOAD__             00C000  LA    
+__CODE_RUN__              00C000  LA    __CODE_SIZE__             000930  EA    
+__IO_FILEOFFS__           000000  EA    __IO_LAST__               008000  LA    
+__IO_SIZE__               002000  EA    __IO_START__              008000 RLA    
+__RAM0_FILEOFFS__         000000  EA    __RAM0_LAST__             000393  LA    
+__RAM0_SIZE__             000200  EA    __RAM0_START__            000200  LA    
+__RAM_FILEOFFS__          000000  EA    __RAM_LAST__              000400  LA    
+__RAM_SIZE__              007C00 REA    __RAM_START__             000400 RLA    
+__RODATA_AL_LOAD__        00CA00  LA    __RODATA_AL_RUN__         00CA00  LA    
+__RODATA_AL_SIZE__        0002A8  EA    __RODATA_LOAD__           00C930  LA    
+__RODATA_RUN__            00C930  LA    __RODATA_SIZE__           000011  EA    
+__ROM_FILEOFFS__          000000  EA    __ROM_LAST__              010000  LA    
+__ROM_SIZE__              004000  EA    __ROM_START__             00C000  LA    
+__STACK_FILEOFFS__        000000  EA    __STACK_LAST__            000100  LA    
+__STACK_SIZE__            000100  EA    __STACK_START__           000100  LA    
+__SYSRAM_LOAD__           000200  LA    __SYSRAM_RUN__            000200  LA    
+__SYSRAM_SIZE__           000193  EA    __ZEROPAGE_LOAD__         000000  LA    
+__ZEROPAGE_RUN__          000000  LA    __ZEROPAGE_SIZE__         000011  EA    
+__ZP_FILEOFFS__           000000  EA    __ZP_LAST__               000011  LA    
+__ZP_SIZE__               000100  EA    __ZP_START__              000000  LA    
+__kernel_sleep            00C37B RLA    osversion                 00C930  LA    
+shell_buffer              000353 RLA    shell_buffer_used         000352 RLA    
+shell_cmd_id              000350 RLA    shell_cmd_tmp             000351 RLA    
+
+
+
+Exports list by value:
+----------------------
+__BSS_SIZE__              000000  EA    __IO_FILEOFFS__           000000  EA    
+__ZP_START__              000000  LA    __RAM0_FILEOFFS__         000000  EA    
+__RAM_FILEOFFS__          000000  EA    __ZP_FILEOFFS__           000000  EA    
+ZP_LCD_COL                000000 RLZ    __ROM_FILEOFFS__          000000  EA    
+__ZEROPAGE_RUN__          000000  LA    __ZEROPAGE_LOAD__         000000  LA    
+__STACK_FILEOFFS__        000000  EA    ZP_LCD_ROW                000001 RLZ    
+ZP_LCD_STR_PTR            000002 RLZ    ZP_LCD_STR_PTR_HI         000003  LZ    
+ZP_LCD_BUF_IDX            000004 RLZ    ZP_KEYB_TMP               000005 RLZ    
+ZP_KEYB_RD_RESULT         000006 RLZ    ZP_KEYB_WR_PTR            000007 RLZ    
+ZP_KEYB_RD_PTR            000008 RLZ    ZP_KEYB_INIT_RESULT       000009 RLZ    
+ZP_KEYB_LEDS              00000A RLZ    ZP_KEYB_FLAGS             00000B RLZ    
+ZP_ACIA_WR_PTR            00000C RLZ    ZP_ACIA_RD_PTR            00000D RLZ    
+ZP_ACIA_SPTR              00000E RLZ    ZP_VIA_TIMER_INT_CNT      000010 RLZ    
+__ZEROPAGE_SIZE__         000011  EA    __ZP_LAST__               000011  LA    
+__RODATA_SIZE__           000011  EA    __STACK_SIZE__            000100  EA    
+__STACK_LAST__            000100  LA    __STACK_START__           000100  LA    
+__ZP_SIZE__               000100  EA    __SYSRAM_SIZE__           000193  EA    
+__RAM0_START__            000200  LA    __SYSRAM_LOAD__           000200  LA    
+__SYSRAM_RUN__            000200  LA    __RAM0_SIZE__             000200  EA    
+ACIA_BUFFER               000200 RLA    KEYB_BUFFER               000280 RLA    
+__RODATA_AL_SIZE__        0002A8  EA    LCD_BUFFER                000300 RLA    
+shell_cmd_id              000350 RLA    shell_cmd_tmp             000351 RLA    
+shell_buffer_used         000352 RLA    shell_buffer              000353 RLA    
+__RAM0_LAST__             000393  LA    __RAM_LAST__              000400  LA    
+__BSS_LOAD__              000400  LA    __BSS_RUN__               000400  LA    
+__RAM_START__             000400 RLA    __CODE_SIZE__             000930  EA    
+__IO_SIZE__               002000  EA    __ROM_SIZE__              004000  EA    
+__RAM_SIZE__              007C00 REA    __IO_START__              008000 RLA    
+__IO_LAST__               008000  LA    __CODE_RUN__              00C000  LA    
+__CODE_LOAD__             00C000  LA    __ROM_START__             00C000  LA    
+__kernel_sleep            00C37B RLA    VIA_init                  00C395  LA    
+VIA_ihandler              00C3E5  LA    ACIA_init                 00C402 RLA    
+ACIA_get_byte             00C418 RLA    ACIA_send_byte            00C436 RLA    
+ACIA_send_string          00C445  LA    ACIA_ihandler             00C45C RLA    
+KEYB_init                 00C478 RLA    KEYB_get__wait            00C4BD RLA    
+KEYB_is_shift             00C4DF  LA    KEYB_is_capslock          00C4E4  LA    
+KEYB_is_ctrl              00C4E9  LA    KEYB_is_alt               00C4EE  LA    
+KEYB_is_altgr             00C4F3  LA    KEYB_is_fn                00C4F8  LA    
+KEYB_ihandler             00C679 RLA    LCD_init                  00C727 RLA    
+LCD_clear                 00C832  LA    LCD_backspace             00C858  LA    
+LCD_newline               00C875 RLA    LCD_print_hex             00C892  LA    
+LCD_print_str             00C8AD  LA    LCD_print_char            00C8BE RLA    
+osversion                 00C930  LA    __RODATA_RUN__            00C930  LA    
+__RODATA_LOAD__           00C930  LA    __RODATA_AL_LOAD__        00CA00  LA    
+__RODATA_AL_RUN__         00CA00  LA    __ROM_LAST__              010000  LA    
+
+
+
+Imports list:
+-------------
+ACIA_BUFFER (sysram.o):
+    acia.o                    ./src/include/sysram.inc:21
+ACIA_get_byte (acia.o):
+    kernel.o                  ./src/include/acia.inc:5
+ACIA_ihandler (acia.o):
+    kernel.o                  ./src/include/acia.inc:9
+ACIA_init (acia.o):
+    kernel.o                  ./src/include/acia.inc:4
+ACIA_send_byte (acia.o):
+    kernel.o                  ./src/include/acia.inc:6
+ACIA_send_string (acia.o):
+KEYB_BUFFER (sysram.o):
+    keyboard.o                ./src/include/sysram.inc:22
+KEYB_get__wait (keyboard.o):
+    kernel.o                  ./src/include/keyboard.inc:5
+KEYB_ihandler (keyboard.o):
+    kernel.o                  ./src/include/keyboard.inc:13
+KEYB_init (keyboard.o):
+    kernel.o                  ./src/include/keyboard.inc:4
+KEYB_is_alt (keyboard.o):
+KEYB_is_altgr (keyboard.o):
+KEYB_is_capslock (keyboard.o):
+KEYB_is_ctrl (keyboard.o):
+KEYB_is_fn (keyboard.o):
+KEYB_is_shift (keyboard.o):
+LCD_BUFFER (sysram.o):
+    lcd.o                     ./src/include/sysram.inc:23
+    kernel.o                  ./src/include/sysram.inc:23
+LCD_backspace (lcd.o):
+LCD_clear (lcd.o):
+LCD_init (lcd.o):
+    kernel.o                  ./src/include/lcd.inc:4
+LCD_newline (lcd.o):
+    kernel.o                  ./src/include/lcd.inc:7
+LCD_print_char (lcd.o):
+    kernel.o                  ./src/include/lcd.inc:10
+LCD_print_hex (lcd.o):
+LCD_print_str (lcd.o):
+VIA_ihandler (via.o):
+VIA_init (via.o):
+ZP_ACIA_RD_PTR (sysram.o):
+    acia.o                    ./src/include/sysram.inc:17
+ZP_ACIA_SPTR (sysram.o):
+    acia.o                    ./src/include/sysram.inc:18
+ZP_ACIA_WR_PTR (sysram.o):
+    acia.o                    ./src/include/sysram.inc:16
+ZP_KEYB_FLAGS (sysram.o):
+    keyboard.o                ./src/include/sysram.inc:15
+ZP_KEYB_INIT_RESULT (sysram.o):
+    kernel.o                  ./src/include/sysram.inc:13
+ZP_KEYB_LEDS (sysram.o):
+    keyboard.o                ./src/include/sysram.inc:14
+ZP_KEYB_RD_PTR (sysram.o):
+    keyboard.o                ./src/include/sysram.inc:12
+ZP_KEYB_RD_RESULT (sysram.o):
+    keyboard.o                ./src/include/sysram.inc:10
+ZP_KEYB_TMP (sysram.o):
+    keyboard.o                ./src/include/sysram.inc:9
+ZP_KEYB_WR_PTR (sysram.o):
+    keyboard.o                ./src/include/sysram.inc:11
+ZP_LCD_BUF_IDX (sysram.o):
+    lcd.o                     ./src/include/sysram.inc:8
+ZP_LCD_COL (sysram.o):
+    lcd.o                     ./src/include/sysram.inc:4
+ZP_LCD_ROW (sysram.o):
+    lcd.o                     ./src/include/sysram.inc:5
+ZP_LCD_STR_PTR (sysram.o):
+    lcd.o                     ./src/include/sysram.inc:6
+ZP_LCD_STR_PTR_HI (sysram.o):
+ZP_VIA_TIMER_INT_CNT (sysram.o):
+    via.o                     ./src/include/sysram.inc:19
+__BSS_LOAD__ ([linker generated]):
+__BSS_RUN__ ([linker generated]):
+__BSS_SIZE__ ([linker generated]):
+__CODE_LOAD__ ([linker generated]):
+__CODE_RUN__ ([linker generated]):
+__CODE_SIZE__ ([linker generated]):
+__IO_FILEOFFS__ ([linker generated]):
+__IO_LAST__ ([linker generated]):
+__IO_SIZE__ ([linker generated]):
+__IO_START__ ([linker generated]):
+    lcd.o                     ./src/include/via.h:4
+    keyboard.o                ./src/include/via.h:4
+    acia.o                    ./src/include/acia.h:4
+    via.o                     ./src/include/via.h:4
+    kernel.o                  ./src/include/acia.h:4
+__RAM0_FILEOFFS__ ([linker generated]):
+__RAM0_LAST__ ([linker generated]):
+__RAM0_SIZE__ ([linker generated]):
+__RAM0_START__ ([linker generated]):
+__RAM_FILEOFFS__ ([linker generated]):
+__RAM_LAST__ ([linker generated]):
+__RAM_SIZE__ ([linker generated]):
+    kernel.o                  ./src/include/kernel.h:5
+__RAM_START__ ([linker generated]):
+    kernel.o                  ./src/include/kernel.h:4
+__RODATA_AL_LOAD__ ([linker generated]):
+__RODATA_AL_RUN__ ([linker generated]):
+__RODATA_AL_SIZE__ ([linker generated]):
+__RODATA_LOAD__ ([linker generated]):
+__RODATA_RUN__ ([linker generated]):
+__RODATA_SIZE__ ([linker generated]):
+__ROM_FILEOFFS__ ([linker generated]):
+__ROM_LAST__ ([linker generated]):
+__ROM_SIZE__ ([linker generated]):
+__ROM_START__ ([linker generated]):
+__STACK_FILEOFFS__ ([linker generated]):
+__STACK_LAST__ ([linker generated]):
+__STACK_SIZE__ ([linker generated]):
+__STACK_START__ ([linker generated]):
+__SYSRAM_LOAD__ ([linker generated]):
+__SYSRAM_RUN__ ([linker generated]):
+__SYSRAM_SIZE__ ([linker generated]):
+__ZEROPAGE_LOAD__ ([linker generated]):
+__ZEROPAGE_RUN__ ([linker generated]):
+__ZEROPAGE_SIZE__ ([linker generated]):
+__ZP_FILEOFFS__ ([linker generated]):
+__ZP_LAST__ ([linker generated]):
+__ZP_SIZE__ ([linker generated]):
+__ZP_START__ ([linker generated]):
+__kernel_sleep (kernelUtils.o):
+    lcd.o                     ./src/include/kernelUtils.inc:4
+    keyboard.o                ./src/include/kernelUtils.inc:4
+    acia.o                    ./src/include/kernelUtils.inc:4
+    via.o                     ./src/include/kernelUtils.inc:4
+osversion (sysram.o):
+shell_buffer (sysram.o):
+    kernel.o                  ./src/include/sysram.inc:27
+shell_buffer_used (sysram.o):
+    kernel.o                  ./src/include/sysram.inc:26
+shell_cmd_id (sysram.o):
+    kernel.o                  ./src/include/sysram.inc:24
+shell_cmd_tmp (sysram.o):
+    kernel.o                  ./src/include/sysram.inc:25
+

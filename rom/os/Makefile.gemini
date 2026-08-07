@@ -1,0 +1,53 @@
+CA65 = ca65
+LD65 = ld65
+
+BUILD_DIR = build
+GEN_DIR = generated
+
+AFLAGS = --cpu 65C02 --debug-info
+LDFLAGS = -C boot.cfg --dbgfile $(BUILD_DIR)/boot.dbg
+
+# 1. Dynamisch ALLE .s Dateien finden (im Hauptverzeichnis und Unterordnern)
+# Ausgenommen werden generierte Dateien unter generated/
+ALL_SRCS = $(wildcard *.s) $(wildcard */*.s)
+SRCS     = $(filter-out $(GEN_DIR)/%, $(ALL_SRCS))
+
+# 2. Objekt- und Abhängigkeitsdateien unter build/ spiegeln
+OBJS     = $(addprefix $(BUILD_DIR)/, $(SRCS:.s=.o))
+DEPS     = $(OBJS:.o=.d)
+
+GEN_OBJ  = $(BUILD_DIR)/$(GEN_DIR)/rom_defs.o
+GEN_SRC  = $(GEN_DIR)/rom_defs.s
+
+TARGET   = $(BUILD_DIR)/boot.bin
+
+all: $(TARGET) $(GEN_OBJ)
+
+# Einbinden der automatisch generierten Include-Abhängigkeiten (.d Dateien)
+-include $(DEPS)
+
+# Musterregel für alle .s Dateien
+# --create-dep erzeugt automatisch die Regel, welche .inc/.h Dateien benötigt werden
+$(BUILD_DIR)/%.o: %.s
+	@mkdir -p $(dir $@)
+	$(CA65) $(AFLAGS) --create-dep $(BUILD_DIR)/$*.d $< -o $@
+
+# Linken des Kernels
+$(TARGET): $(OBJS)
+	@mkdir -p $(BUILD_DIR)
+	$(LD65) $(LDFLAGS) -o $@ $(OBJS)
+
+# Python-Generator Schritt
+$(GEN_SRC): $(BUILD_DIR)/boot.dbg
+	@mkdir -p $(GEN_DIR)
+	python3 $(GEN_DIR)/generate_rom_defs.py
+
+# Generierte Datei assemblieren
+$(GEN_OBJ): $(GEN_SRC)
+	@mkdir -p $(dir $@)
+	$(CA65) $(AFLAGS) $< -o $@
+
+clean:
+	rm -rf $(BUILD_DIR) $(GEN_SRC)
+
+.PHONY: all clean
