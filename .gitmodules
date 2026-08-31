@@ -1,0 +1,3 @@
+[submodule "rom/basic"]
+	path = rom/basic
+	url = git@github.com:uesser/ue6502-basic.git
