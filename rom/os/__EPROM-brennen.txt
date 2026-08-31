@@ -1,0 +1,23 @@
+EPROM brennen mit T48 von XGecu
+-------------------------------
+
+CLI: minipro  -  man 1 minipro für Hilfe
+GUI: XGecu Programmer
+
+Sollte sich ein (meist neues) EPROM nicht brennen lassen, dann ist evtl. der Brennschutz aktiviert.
+Um ihn zu deaktivieren muss man einmalig mit minipro brennen:
+
+    - Die zu brennende .bin Datei muss genauso groß sein wie das EPROM
+          Bsp. AT28C256: 32kB Dateigröße, da diese EPROM 32kB Daten aufnimmt.
+    - Beim ersten brennen: minipro -p AT28C256 -u -w <zu-brennende-datei.bin>
+          -u deaktiviert den Brennschutz (-P setzt ihn wieder, bei Bedarf)
+
+    Danach kann das EPROM auch mit der GUI (XGecu Programmer) anstandslos gebrannt werden.
+
+
+32kB Datei aus einer 16kB Datei erstellen, zum Brennen mit minipro
+
+    # Erzeugt eine 16kB Datei mit dem Inhalt "16kB mal FF"
+    dd if=/dev/zero bs=1k count=16 | tr '\x00' '\xff' > datei_32kb.bin
+    # Hängt man jetzt die zu brennende Datei an, erhält man eine 32kB Datei
+    cat zu-brennende-datei.bin >> datei_32kb.bin

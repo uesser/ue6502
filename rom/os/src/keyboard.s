@@ -1,8 +1,8 @@
 ;================================================================================
-;
 ;   PS/2 keyboard interface through VIA - needs PORTB necessarily
-;
 ;================================================================================
+
+.include "cpu.inc"
 
 .include "constants.inc"
 .include "sysram.inc"
@@ -76,17 +76,12 @@ wait:
 .segment "CODE"
 
 ;================================================================================
-;
 ;   KEYB_init - initializes the PS2 keyboard
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: none
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_init:
 	; Initialise input buffer
@@ -126,19 +121,14 @@ KEYB_init:
     rts
 
 ;================================================================================
-;
 ;   KEYB_get__wait - Get ASCII from keyboard buffer
 ;                    waits for next keystroke/scancode
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: .A as ASCII or $00 if special key (ctrl, shift, ...) or
 ;                       no valid scancode
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_get__wait:
     phy
@@ -175,17 +165,12 @@ KEYB_get__wait:
 	rts
 
 ;================================================================================
-;
 ;   KEYB_is_shift - returns 0 if shift is not set, != 0 else
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: .A as 0 if shift is not set, != 0 else
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_is_shift:
     lda ZP_KEYB_FLAGS
@@ -193,17 +178,12 @@ KEYB_is_shift:
     rts
 
 ;================================================================================
-;
 ;   KEYB_is_capslock - returns 0 if capslock is not set, != 0 else
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: .A as 0 if capslock is not set, != 0 else
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_is_capslock:
     lda ZP_KEYB_FLAGS
@@ -211,17 +191,12 @@ KEYB_is_capslock:
     rts
 
 ;================================================================================
-;
 ;   KEYB_is_ctrl - returns 0 if ctrl is not set, != 0 else
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: .A as 0 if ctrl is not set, != 0 else
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_is_ctrl:
     lda ZP_KEYB_FLAGS
@@ -229,17 +204,12 @@ KEYB_is_ctrl:
     rts
 
 ;================================================================================
-;
 ;   KEYB_is_alt - returns 0 if alt is not set, != 0 else
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: .A as 0 if alt is not set, != 0 else
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_is_alt:
     lda ZP_KEYB_FLAGS
@@ -247,17 +217,12 @@ KEYB_is_alt:
     rts
 
 ;================================================================================
-;
 ;   KEYB_is_altgr - returns 0 if altgr is not set, != 0 else
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: .A as 0 if altgr is not set, != 0 else
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_is_altgr:
     lda ZP_KEYB_FLAGS
@@ -265,17 +230,12 @@ KEYB_is_altgr:
     rts
 
 ;================================================================================
-;
 ;   KEYB_is_fn - returns 0 if fn is not set, != 0 else
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: .A as 0 if fn is not set, != 0 else
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_is_fn:
     lda ZP_KEYB_FLAGS
@@ -283,17 +243,12 @@ KEYB_is_fn:
     rts
 
 ;================================================================================
-;
 ;   ps2_write - Write a byte to the PS/2 port - unbuffered
-;
 ;   ————————————————————————————————————
 ;   Parameters:      .A is the byte to be sent to keyboard
-;
 ;   Returned Values: none
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ps2_write:
     phx
@@ -359,17 +314,12 @@ ps2_write:
     rts
     
 ;================================================================================
-;
 ;   ps2_write_bit - Write a bit to the PS/2 shift register
-;
 ;   ————————————————————————————————————
 ;   Parameters:      The bit to write is in the carry flag
-;
 ;   Returned Values: none
-;
 ;   Destroys:        none
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ps2_write_bit:
     pha
@@ -397,18 +347,13 @@ ps2_write_bit:
     rts
 
 ;================================================================================
-;
 ;   ps2_to_ascii - converts PS2-scancode to ASCII
-;
 ;   ————————————————————————————————————
 ;   Parameters:      .A is PS2-scancode
-;
 ;   Returned Values: .A as ASCII or $00 if special key (ctrl, shift, ...) or
 ;                       no valid scancode
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ps2_to_ascii:
     phx
@@ -572,17 +517,12 @@ ps2_to_ascii:
 	rts
 
 ;================================================================================
-;
 ;   ps2_set_leds - set all leds on/off
-;
 ;   ————————————————————————————————————
 ;   Parameters:      .A is led status byte
-;
 ;   Returned Values: none
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ps2_set_leds:
     phx
@@ -601,17 +541,12 @@ ps2_set_leds:
     rts
 
 ;================================================================================
-;
 ;   ps2_set_capslock_led - set capslock led on/off
-;
 ;   ————————————————————————————————————
 ;   Parameters:      .A is 1 => led on, 0 => led off
-;
 ;   Returned Values: none
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ps2_set_capslock_led:
     cmp #0
@@ -627,23 +562,17 @@ pcl_do:
     rts
 
 ;================================================================================
-;
 ;   KEYB_ihandler - PS/2 keyboard IRQ Handler
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: none
-;
 ;   Destroys:        none
 ;   ————————————————————————————————————
-;
 ;================================================================================
 KEYB_ihandler:
     ; Check for VIA interrupts
 ;    bit KEYB_IFR
 ;    bmi @irq_via
-;
 ;    ply                       ; restore y
 ;    plx                       ; restore x
 ;    pla                       ; restore Akku
@@ -755,7 +684,7 @@ irq_via_ps2_framingerror:
     rti
 
 
-.segment "RODATA_AL"
+.segment "RODATA"
 
 ps2_scancode_reverse:
   .byte $00, $80, $40, $c0, $20, $a0, $60, $e0, $10, $90, $50, $d0, $30, $b0, $70, $f0

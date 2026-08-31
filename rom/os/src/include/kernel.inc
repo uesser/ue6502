@@ -1,16 +1,14 @@
 .ifndef _KERNEL_INC_
 _KERNEL_INC_ = 1
 
-.setcpu "65C02"
+.include "cpu.inc"
+
 .MACPACK generic
 
 ;================================================================================
-;
 ;                                    "UE65c02"
 ;                                    _________
-;
 ;   kernel: RAM bootloader and viewer (r/o) w/ serial connection support
-;
 ;================================================================================
 
 ;--------

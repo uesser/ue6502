@@ -1,0 +1,29 @@
+{
+  "srcDir": "src",
+  "includes": [
+    "include/constants.inc",
+    "include/cpu.inc",
+    "include/acia.inc",
+    "include/acia.h",
+    "include/kernel.inc",
+    "include/kernel.h",
+    "include/kernelUtils.inc",
+    "include/keyboard.inc",
+    "include/keyboard.h",
+    "include/lcd.inc",
+    "include/lcd.h",
+    "include/sysram.inc",
+    "include/sysram.h",
+    "include/via.inc",
+    "include/via.h"
+  ],
+  "modules": [
+    "kernel.s",
+    "acia.s",
+    "keyboard.s",
+    "kernelUtils.s",
+    "lcd.s",
+    "sysram.s",
+    "via.s"
+  ]
+}

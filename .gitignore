@@ -1,2 +1,13 @@
 /.project
 
+rom/os/build/
+.vscode/
+.pi/
+*.bin
+*.o
+*.d
+*.dbg
+*.raw
+*.rom
+*.map
+*.lbl

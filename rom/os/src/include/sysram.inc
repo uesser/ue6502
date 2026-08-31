@@ -27,6 +27,7 @@ _SYSRAM_INC_ = 1
 .import shell_buffer
 
 .import osversion
+.import copywrite 
 
 .include "sysram.h"
 .endif

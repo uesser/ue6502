@@ -1,6 +1,8 @@
 .ifndef _ACIA_INC_
 _ACIA_INC_ = 1
 
+.include "cpu.inc"
+
 .import ACIA_init
 .import ACIA_get_byte
 .import ACIA_send_byte

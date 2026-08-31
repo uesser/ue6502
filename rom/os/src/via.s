@@ -1,3 +1,5 @@
+.include "cpu.inc"
+
 .include "constants.inc"
 .include "sysram.inc"
 .include "kernelUtils.inc"
@@ -14,17 +16,12 @@ LEDS            = $00FC  ; status of the LEDs
 .segment "CODE"
 
 ;================================================================================
-;
 ;   VIA_init - initializes the VIA
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: none
-;
 ;   Destroys:        none
 ;   ————————————————————————————————————
-;
 ;================================================================================
 VIA_init:
     pha
@@ -75,17 +72,12 @@ loop:
     rts
 
 ;================================================================================
-;
 ;   VIA_init_timer - initializes the VIA timer
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: none
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 VIA_init_timer:
     lda #%11000000           ; setting bit 7 sets interrupts and bit 6 enables Timer 1
@@ -106,17 +98,12 @@ VIA_init_timer:
     rts
 
 ;================================================================================
-;
 ;   VIA_ihandler - VIA IRQ Handler
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: none
-;
 ;   Destroys:        none
 ;   ————————————————————————————————————
-;
 ;================================================================================
 VIA_ihandler:                ; IRQ handler for VIA Timer. Must be called by overall IRQ handler
     bit VIA_IFR              ; Bit 6 copied to overflow flag

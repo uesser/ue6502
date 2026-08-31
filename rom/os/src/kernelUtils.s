@@ -1,30 +1,33 @@
+.include "cpu.inc"
+
 .include "constants.inc"
-.include "kernelUtils.h"
 
 .export __kernel_sleep
+
+.macro SLEEP_FOR_100us
+    .local @SLEEP_FOR_100us_loop
+    phx                         ; (3 cycles)
+	ldx #CPU_FREQUENCY * 19     ; (2 cycles)  -  e.g. 38 is for CPU_FREQUENCY == 2MHz
+@SLEEP_FOR_100us_loop:
+    dex                         ; (2 cycles)
+	bne @SLEEP_FOR_100us_loop   ; (3 cycles in loop, 2 cycles at end)
+	plx                         ; (4 cycles)
+.endmacro
 
 .segment "CODE"
 
 ;================================================================================
-;
 ;   __kernel_sleep - sleeps a while
-;
 ;   Sleeps for about 100us, param times (e.g. y = 0, x = 5 => sleeps about 500us).
 ;   Maximum sleep is about 6,5s (y = 255, x = 255).
-;
 ;   Macro SLEEP_100us is adjusted to CPU_FREQUENCY so the whole loop lasts about 100us
-;
 ;   (5 + 198) * (256 * y + x) + (9 * y) + 5|8 + 6
 ;   @2MHz: y = 0, x = 1 => (203 + 11) * 0,0000005 = 107us  -  0,0000005s (500ns) => 1 cycle @ 2MHz
-;
 ;   ————————————————————————————————————
 ;   Parameters:      .X, .Y - 16bit uint - high in y, low in x
-;
 ;   Returned Values: none
-;
 ;   Destroys:        .X, .Y
 ;   ————————————————————————————————————
-;
 ;================================================================================
 __kernel_sleep:
     cpx #0                        ; (2 cycles)

@@ -1,5 +1,7 @@
 ; Boot ROM for UE65c02 computer.
 
+.include "cpu.inc"
+
 .include "constants.inc"
 .include "sysram.inc"
 .include "kernelUtils.inc"
@@ -192,9 +194,7 @@ sys_exit:  ; Jump here to hand control back to shell
   cli
   jmp shell_next_command
 
-;
 ; Built-in command table
-;
 built_in_count: .byte 6
 built_in_cmd_offsets:
 .byte 0
@@ -220,9 +220,7 @@ built_in_main:
 .word shell_run_main
 .word shell_dump_main
 
-;
 ; Built-in command: echo
-;
 shell_echo_main:
   ldx #5
   
@@ -238,9 +236,7 @@ shell_echo_main:
   lda #0
   jmp sys_exit
 
-;
 ; Built-in command: hello
-;
 shell_hello_main:
   ldx #0
 @hello_char:
@@ -256,7 +252,6 @@ shell_hello_main:
 
 hello_world: .asciiz "Hello, world"
 
-;
 ; Built-in command: rx
 ; recives a file over XMODEM protocol, and loads it into memory
 USER_PROGRAM_START = $0400   ; Address for start of user programs
@@ -492,7 +487,6 @@ shell_irqtest_main:
   jsr shell_newline
   lda #0
   jmp sys_exit
-;
 ;fake_irq:
 ;  ldx IRQ_CONTROLLER        ; read interrupt controller to find highest-priority interrupt to service
 ;  jmp (isr_jump_table, X)   ; jump to matching service routine

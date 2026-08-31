@@ -3,6 +3,4 @@ _KERNELUTILS_INC_ = 1
 
 .import __kernel_sleep
 
-.include "kernelUtils.h"
-
 .endif

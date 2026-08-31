@@ -1,3 +1,5 @@
+.include "cpu.inc"
+
 .include "constants.inc"
 .include "sysram.inc"
 .include "kernelUtils.inc"
@@ -41,17 +43,12 @@
 .segment "CODE"
 
 ;================================================================================
-;
 ;   ACIA_init - initializes the R6551 // RS232 Serial communications
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: none
-;
 ;   Destroys:        none
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ACIA_init:
     pha	
@@ -70,17 +67,12 @@ ACIA_init:
 	rts
 
 ;================================================================================
-;
 ;   ACIA_get_byte - Return one byte from RX buffer in .A
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: .A, C flag (set if data exist, cleared if no data)
-;
 ;   Destroys:        .A
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ACIA_get_byte:
     sei
@@ -100,17 +92,12 @@ ACIA_get_byte:
     rts
 
 ;================================================================================
-;
 ;   ACIA_send_byte - Send one byte to TX buffer
-;
 ;   ————————————————————————————————————
 ;   Parameters:      .A byte to send
-;
 ;   Returned Values: none
-;
 ;   Destroys:        none
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ACIA_send_byte:
 ;    sei
@@ -133,17 +120,12 @@ ACIA_send_byte:
     rts                       
 
 ;================================================================================
-;
 ;   ACIA_send_string - Send null-terminated string
-;
 ;   ————————————————————————————————————
 ;   Parameters:      ZP_ACIA_SPTR, ZP_ACIA_SPTR+1 string pointer
-;
 ;   Returned Values: none
-;
 ;   Destroys:        none
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ACIA_send_string:
     pha
@@ -165,17 +147,12 @@ ACIA_send_string:
     rts
 
 ;================================================================================
-;
 ;   ACIA_ihandler - ACIA IRQ Handler
-;
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;
 ;   Returned Values: none
-;
 ;   Destroys:        none
 ;   ————————————————————————————————————
-;
 ;================================================================================
 ACIA_ihandler:                        ; IRQ handler for ACIA RX. Must be called by overall IRQ handler
     lda ACIA_STATUS

@@ -1,39 +1,50 @@
-# make -d --dry-run
-# -d == debug all
+CA65 = ca65
+LD65 = ld65
 
-LDCFG = ue65c02.cfg
-LDMAP = os.map
-LDLBL = os.lbl
-TARGET = os
+BUILD_DIR := build
+OBJ_DIR := $(BUILD_DIR)/obj
+SRC_DIR := src
+CFG := ue65c02.cfg
+INCLUDES := -I ./src/include
 
-ASFLAGS = -t none --cpu 65c02
+# --cpu 65816 muss gesetzt werden, weil die Original 65C02 CPU den opcode wai nicht kannte,
+# nur die 65C02W. Diese CPU kennt aber der ca65 nicht. Da 65C02W und 65816 opcode äquivalent sind,
+# ist es ok, hier 65816 zu setzen.
+AFLAGS = --cpu 65816 --debug-info $(INCLUDES)
+LDFLAGS = -C $(CFG) --dbgfile $(BUILD_DIR)/os.dbg
 
-VPATH = src src/include
+SRCS := $(SRC_DIR)/kernel.s \
+	$(filter-out $(SRC_DIR)/kernel.s,$(wildcard $(SRC_DIR)/*.s))
+OBJS := $(patsubst $(SRC_DIR)/%.s,$(OBJ_DIR)/%.o,$(SRCS))
+DEPS := $(OBJS:.o=.d)
+RAW_IMAGE := $(BUILD_DIR)/os.raw
+AUTO_RAW_IMAGE := $(RAW_IMAGE).bin
+ROM_TARGET := $(BUILD_DIR)/os.bin
+EPROMSIZE := 32768
+ROM_OFFSET := 16384
 
-SRCS = kernel.s \
-	   sysram.s \
-	   kernelUtils.s \
-	   via.s \
-	   acia.s \
-	   keyboard.s \
-	   lcd.s
+.PHONY: all clean burn
 
-OBJDIR = ./obj
-OBJS := $(addprefix $(OBJDIR)/,$(patsubst %.s,%.o,$(SRCS)))
+all: $(ROM_TARGET)
 
-all: $(TARGET)
+-include $(DEPS)
 
-$(OBJS): $(SRCS)
-	ca65 $(ASFLAGS) -I ./src/include -o $@ $<
+$(BUILD_DIR) $(OBJ_DIR):
+	@mkdir -p $@
 
-$(TARGET): $(OBJS)
-	ld65 -C ./$(LDCFG) -v -Ln $(LDLBL) -vm -m $(LDMAP) -o $(TARGET) $(OBJS)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.s | $(OBJ_DIR)
+	$(CA65) $(AFLAGS) --create-dep $(OBJ_DIR)/$*.d $< -o $@
 
-$(OBJS): | $(OBJDIR)
+$(RAW_IMAGE): $(OBJS) | $(BUILD_DIR)
+	$(LD65) $(LDFLAGS) -o $@ $(OBJS)
+	cp $(AUTO_RAW_IMAGE) $@
+	rm -f $(AUTO_RAW_IMAGE)
 
-$(OBJDIR):
-	mkdir $(OBJDIR)
-		
-.PHONY: clean
+$(ROM_TARGET): $(RAW_IMAGE)
+	python3 -c "from pathlib import Path; rom = Path('$(RAW_IMAGE)').read_bytes(); out = bytearray([0xFF]) * $(EPROMSIZE); out[$(ROM_OFFSET):$(ROM_OFFSET)+len(rom)] = rom; Path('$(ROM_TARGET)').write_bytes(out)"
+
+burn: $(ROM_TARGET)
+	minipro -p at28c256 -u -w $(ROM_TARGET)
+
 clean:
-	rm -f $(TARGET).rom $(LDLBL) $(LDMAP) $(OBJS)
+	rm -rf $(BUILD_DIR)
