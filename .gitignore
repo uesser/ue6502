@@ -1,5 +1,4 @@
-/.project
-
+.project
 rom/os/build/
 .vscode/
 .pi/
@@ -11,3 +10,4 @@ rom/os/build/
 *.rom
 *.map
 *.lbl
+.clang-format
