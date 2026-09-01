@@ -25,6 +25,24 @@ reset:
 
   jsr LCD_init
   jsr KEYB_init
+  cli
+
+  ; Configure EhBASIC's RAM I/O vectors and start BASIC at $C836.
+  lda #<ACIA_get_byte
+  sta $0205
+  lda #>ACIA_get_byte
+  sta $0206
+  lda #<ACIA_send_byte
+  sta $0207
+  lda #>ACIA_send_byte
+  sta $0208
+  lda #<basic_file_stub
+  sta $0209
+  sta $020b
+  lda #>basic_file_stub
+  sta $020a
+  sta $020c
+  jsr BASIC_ENTRY
   
   cli
 
@@ -548,6 +566,9 @@ kernel_putc:
 kernel_putc_ACIA:
         jsr ACIA_send_byte
         rts
+
+basic_file_stub:
+  rts
 
 ;SERVICE_VIA:
 irq1_isr:                        ; interrupt routine for VIA

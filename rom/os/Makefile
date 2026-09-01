@@ -20,8 +20,13 @@ DEPS := $(OBJS:.o=.d)
 RAW_IMAGE := $(BUILD_DIR)/os.raw
 AUTO_RAW_IMAGE := $(RAW_IMAGE).bin
 ROM_TARGET := $(BUILD_DIR)/os.bin
+BASIC_IMAGE := ../basic/basic.bin
+BASIC_SOURCES := $(wildcard ../basic/*.s ../basic/*.cfg ../basic/Makefile)
+COMBINED_IMAGE := $(BUILD_DIR)/rom16.bin
 EPROMSIZE := 32768
 ROM_OFFSET := 16384
+BASIC_OFFSET := 0
+OS_OFFSET := 10496
 
 .PHONY: all clean burn
 
@@ -35,13 +40,19 @@ $(BUILD_DIR) $(OBJ_DIR):
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.s | $(OBJ_DIR)
 	$(CA65) $(AFLAGS) --create-dep $(OBJ_DIR)/$*.d $< -o $@
 
+$(BASIC_IMAGE): $(BASIC_SOURCES)
+	$(MAKE) -C ../basic
+
 $(RAW_IMAGE): $(OBJS) | $(BUILD_DIR)
 	$(LD65) $(LDFLAGS) -o $@ $(OBJS)
 	cp $(AUTO_RAW_IMAGE) $@
 	rm -f $(AUTO_RAW_IMAGE)
 
-$(ROM_TARGET): $(RAW_IMAGE)
-	python3 -c "from pathlib import Path; rom = Path('$(RAW_IMAGE)').read_bytes(); out = bytearray([0xFF]) * $(EPROMSIZE); out[$(ROM_OFFSET):$(ROM_OFFSET)+len(rom)] = rom; Path('$(ROM_TARGET)').write_bytes(out)"
+$(COMBINED_IMAGE): $(BASIC_IMAGE) $(RAW_IMAGE)
+	python3 -c "from pathlib import Path; basic = Path('$(BASIC_IMAGE)').read_bytes(); os = Path('$(RAW_IMAGE)').read_bytes(); out = bytearray([0xFF]) * 16384; out[$(BASIC_OFFSET):$(BASIC_OFFSET)+len(basic)] = basic; out[$(OS_OFFSET):$(OS_OFFSET)+len(os)] = os; Path('$(COMBINED_IMAGE)').write_bytes(out)"
+
+$(ROM_TARGET): $(COMBINED_IMAGE)
+	python3 -c "from pathlib import Path; rom = Path('$(COMBINED_IMAGE)').read_bytes(); out = bytearray([0xFF]) * $(EPROMSIZE); out[$(ROM_OFFSET):$(ROM_OFFSET)+len(rom)] = rom; Path('$(ROM_TARGET)').write_bytes(out)"
 
 burn: $(ROM_TARGET)
 	minipro -p at28c256 -u -w $(ROM_TARGET)
