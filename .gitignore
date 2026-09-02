@@ -1,7 +1,7 @@
 .project
-rom/os/build/
 .vscode/
 .pi/
+**/build/
 *.bin
 *.o
 *.d
@@ -11,3 +11,6 @@ rom/os/build/
 *.map
 *.lbl
 .clang-format
+
+# juststart: local-only session notes and harness state
+.ai-harness/session-notes.md
