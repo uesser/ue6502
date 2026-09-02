@@ -9,17 +9,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      # Checkout the repo including the BASIC submodule. Native submodule
+      # handling uses GITHUB_TOKEN over HTTPS (both ue6502 and ue6502-basic are
+      # public), avoiding the SSH URL in .gitmodules.
+      - name: Checkout (with submodules)
         uses: actions/checkout@v4
-
-      # The BASIC submodule URL in .gitmodules is SSH (git@github.com:...),
-      # which CI cannot clone without an SSH key. Rewrite github.com SSH URLs
-      # to HTTPS (works for public repos) before syncing submodules.
-      - name: Checkout BASIC submodule (HTTPS rewrite)
-        run: |
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git submodule sync --recursive
-          git submodule update --init --recursive
+        with:
+          submodules: recursive
 
       - name: Install cc65 (ca65/ld65)
         run: sudo apt-get update && sudo apt-get install -y cc65
