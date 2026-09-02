@@ -1,7 +1,7 @@
 .project
-rom/os/build/
 .vscode/
 .pi/
+**/build/
 *.bin
 *.o
 *.d
