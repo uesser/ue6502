@@ -30,4 +30,6 @@ jobs:
 
       - name: Verify ROM image produced
         working-directory: rom/os
-        run: test -f build/os.bin && echo "OK: $(stat -c%s build/os.bin) bytes"
+        run: |
+          test -f build/os.bin
+          echo "ROM image build/os.bin produced: $(stat -c%s build/os.bin) bytes"
