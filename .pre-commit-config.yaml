@@ -1,0 +1,39 @@
+# Pre-commit configuration for ue6502
+# Install: just hooks-install (or pre-commit install && pre-commit install --hook-type commit-msg)
+
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Secret scanning with gitleaks
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.1
+    hooks:
+      - id: gitleaks
+
+  # Commit message format
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.1.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, test, chore, ci]
+
+  # Require issue reference (except docs/chore commits)
+  - repo: local
+    hooks:
+      - id: require-issue-reference
+        name: Check for issue reference
+        entry: .githooks/check-issue-ref.sh
+        language: script
+        stages: [commit-msg]
