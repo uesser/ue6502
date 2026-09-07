@@ -20,12 +20,12 @@ jobs:
       - name: Install cc65 (ca65/ld65)
         run: sudo apt-get update && sudo apt-get install -y cc65
 
-      - name: Build OS ROM
-        working-directory: rom/os
+      - name: Build all (os & basic)
+        working-directory: .
         run: make
 
       - name: Verify ROM image produced
-        working-directory: rom/os
+        working-directory: .
         run: |
-          test -f build/os.bin
-          echo "ROM image build/os.bin produced: $(stat -c%s build/os.bin) bytes"
+          test -f build/rom32.bin
+          echo "ROM image build/rom32.bin produced: $(stat -c%s build/rom32.bin) bytes"
