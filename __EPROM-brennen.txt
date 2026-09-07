@@ -5,7 +5,7 @@ CLI: minipro  -  man 1 minipro für Hilfe
 GUI: XGecu Programmer
 
 Sollte sich ein (meist neues) EPROM nicht brennen lassen, dann ist evtl. der Brennschutz aktiviert.
-Um ihn zu deaktivieren muss man einmalig mit minipro brennen:
+Um ihn zu deaktivieren muss man einmalig mit minipro (Parameter -u) brennen:
 
     - Die zu brennende .bin Datei muss genauso groß sein wie das EPROM
           Bsp. AT28C256: 32kB Dateigröße, da diese EPROM 32kB Daten aufnimmt.

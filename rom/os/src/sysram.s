@@ -72,5 +72,5 @@ shell_buffer:          .res $40         ; max size 64 ($40) byte
 
 .segment "VERSDATA"
 
-osversion:             .asciiz "OS version 0.2.2"
+osversion:             .asciiz "OS Vers. v0.2.2"
 copywrite:             .asciiz "Copywrite (c) 2026 Udo Esser. All rights reserved."
