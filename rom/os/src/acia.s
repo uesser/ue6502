@@ -91,6 +91,8 @@ ACIA_get_byte:
     cli
     rts
 
+; TODO: ACIA_get_byte_timeout - Return one byte from RX buffer in .A (C flag indicator), but terminates after a short time if nothing is received
+
 ;================================================================================
 ;   ACIA_send_byte - Send one byte to TX buffer
 ;   ————————————————————————————————————

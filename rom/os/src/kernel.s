@@ -28,13 +28,13 @@ reset:
   cli
 
   ; Configure EhBASIC's RAM I/O vectors and start BASIC at $C836.
-  lda #<ACIA_get_byte
+  lda #<kernel_getc
   sta $0205
-  lda #>ACIA_get_byte
+  lda #>kernel_getc
   sta $0206
-  lda #<ACIA_send_byte
+  lda #<kernel_putc_ACIA
   sta $0207
-  lda #>ACIA_send_byte
+  lda #>kernel_putc_ACIA
   sta $0208
   lda #<basic_file_stub
   sta $0209
@@ -339,6 +339,7 @@ shell_rx_main:
   jmp sys_exit
 
 ; Like kernel_ACIA_getc, but terminates after a short time if nothing is received
+; TODO: must use ACIA function, which might be provided in acia.s first (termninating by timeout).
 shell_rx_receive_with_timeout:
   ldy #$ff
 @y_loop:
