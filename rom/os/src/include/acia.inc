@@ -5,6 +5,7 @@ _ACIA_INC_ = 1
 
 .import ACIA_init
 .import ACIA_get_byte
+.import ACIA_get_byte_timeout   
 .import ACIA_send_byte
 .import ACIA_send_string
 
