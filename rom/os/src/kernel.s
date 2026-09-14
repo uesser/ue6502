@@ -14,7 +14,8 @@
 .segment "CODE"
 
 reset:
-  ; Computer setup
+  ; Computer bootstrap code. This is the first code that runs after reset.
+  ; It initializes the system and then jumps to the shell.
 
   ; init stack
   ldx #$ff
@@ -22,9 +23,9 @@ reset:
   
 ;  jsr VIA_init
   jsr ACIA_init
-
   jsr LCD_init
   jsr KEYB_init
+
   cli
 
 @welcome:
@@ -40,23 +41,22 @@ reset:
 @shell_welcome_done:
 
   ; Configure EhBASIC's RAM I/O vectors and start BASIC at $C836.
-  lda #<kernel_getc
-  sta $0205
-  lda #>kernel_getc
-  sta $0206
-  lda #<kernel_putc
-  sta $0207
-  lda #>kernel_putc
-  sta $0208
-  lda #<basic_file_stub
-  sta $0209
-  sta $020b
-  lda #>basic_file_stub
-  sta $020a
-  sta $020c
-  jsr BASIC_ENTRY
-  
-  cli
+  ; lda #<kernel_getc
+  ; sta $0205
+  ; lda #>kernel_getc
+  ; sta $0206
+  ; lda #<kernel_putc
+  ; sta $0207
+  ; lda #>kernel_putc
+  ; sta $0208
+  ; lda #<basic_file_stub
+  ; sta $0209
+  ; sta $020b
+  ; lda #>basic_file_stub
+  ; sta $020a
+  ; sta $020c
+  ; jsr BASIC_ENTRY
+  ; cli
 
   ; print keyboard init result (keyb err, keyb ok)
   ; lda ZP_KEYB_INIT_RESULT
@@ -86,8 +86,27 @@ reset:
 
 keyboard_check:
   jsr KEYB_get__wait   ; returns ASCII char in .A
-  jsr kernel_putc      ; echo char
+  cmp #$00             ; check if char received
+  beq keyboard_check   ; no char received or invalid scancode or error codes fromn keyboard (e.g. $ff framing error) => loop
+  cmp 'c'
+  bne keyboard_CR
+  jsr KEYB_is_ctrl
+  beq keyboard_CR
+  jsr LCD_clear
+  jmp keyboard_check
+keyboard_CR:
+  cmp #$0d             ; Carriage Return
+  bne keyboard_backsp
+  jsr LCD_newline
+  jmp keyboard_check
+keyboard_backsp:
+  cmp #$08             ; backspace
+  bne keyboard_echo
+  jsr LCD_backspace
+  jmp keyboard_check
+keyboard_echo:
 ;  jsr hex_print_byte  
+  jsr kernel_putc      ; echo char
   jmp keyboard_check
 
 shell_next_command:
@@ -187,7 +206,7 @@ shell_command_test:
   jmp (built_in_main, X) ; jump to this main method
 
 shell_not_found: .asciiz "Command not found"
-shell_welcome: .asciiz "65C02 Rdy"
+shell_welcome: .asciiz "65C02 Ready"
 keyb_ok: .asciiz " (keyb ok)"
 keyb_no_keyb: .asciiz " (no keyb)"
 keyb_err: .asciiz " (keyb err)"
@@ -485,19 +504,7 @@ shell_irqtest_main:
 ;  jmp (isr_jump_table, X)   ; jump to matching service routine
 
 hex_print_byte:               ; print accumulator as two ascii digits (hex)
-  pha                         ; store byte for later
-  lsr                         ; shift out lower nibble
-  lsr
-  lsr
-  lsr
-  tax
-  lda hex_chars, X            ; convert 0-15 to ascii char for hex digit
-  jsr kernel_putc             ; print upper nibble
-  pla                         ; retrieve byte again
-  and #$0f                    ; mask out upper nibble
-  tax
-  lda hex_chars, X            ; convert 0-15 to ascii char for hex digit
-  jsr kernel_putc             ; print lower nibble
+  jsr LCD_print_hex
   rts
 
 hex_print_byte_ACIA:               ; print accumulator as two ascii digits (hex)

@@ -11,7 +11,6 @@
 .exportzp ZP_KEYB_RD_RESULT
 .exportzp ZP_KEYB_WR_PTR
 .exportzp ZP_KEYB_RD_PTR
-.exportzp ZP_KEYB_INIT_RESULT
 .exportzp ZP_KEYB_LEDS
 .exportzp ZP_KEYB_FLAGS
 .exportzp ZP_ACIA_WR_PTR
@@ -43,7 +42,6 @@ ZP_KEYB_TMP:           .res 1
 ZP_KEYB_RD_RESULT:     .res 1
 ZP_KEYB_WR_PTR:        .res 1
 ZP_KEYB_RD_PTR:        .res 1
-ZP_KEYB_INIT_RESULT:   .res 1
 ZP_KEYB_LEDS:          .res 1           ; leds: 1 = scroll lock, 2 = num lock, 4 = caps lock, 8 = 0, 16 = 0, 32 = 0, 64 = 0, 128 = 0
 ZP_KEYB_FLAGS:         .res 1           ; keyboard flags: 1 = release, 2 = capsLock, 4 = shift, 8 = ctrl, 16 = altgr, 32 = alt, 64 = fn, 128 = special ($e0)
 ; ACIA (RS232)
@@ -72,5 +70,5 @@ shell_buffer:          .res $40         ; max size 64 ($40) byte
 
 .segment "VERSDATA"
 
-osversion:             .asciiz "OS Vers. v0.2.2"
+osversion:             .asciiz "OS Vers. v0.2.3"
 copywrite:             .asciiz "Copywrite (c) 2026 Udo Esser. All rights reserved."

@@ -8,6 +8,7 @@
 .include "sysram.inc"
 .include "kernelUtils.inc"
 .include "via.inc"
+.include "lcd.inc"
 .include "keyboard.h"
 
 .export KEYB_init
@@ -84,6 +85,11 @@ wait:
 ;   ————————————————————————————————————
 ;================================================================================
 KEYB_init:
+    ; initialize Keyboard Flags und LEDs
+    lda #0
+    sta ZP_KEYB_FLAGS
+    sta ZP_KEYB_LEDS
+
 	; Initialise input buffer
     lda #1
     sta ZP_KEYB_WR_PTR
@@ -357,7 +363,19 @@ ps2_write_bit:
 ;================================================================================
 ps2_to_ascii:
     phx
-	
+
+    ; Nur zum Test: print scancode as hex
+    ; jsr LCD_print_hex
+
+    ; Test code, ob bei Drücken 'A' (key code = $1c) ein 'A' ausgegeben wird.	
+    ; cmp #$1c                     ; key code $1c = 'A' in ascii
+    ; bne @pta_chk_special
+    ; tax                          ; swap A to X => to have the index into the lookup tables
+    ; lda ps2_to_ascii_upper, X    ; default use ascii_lower
+    ; plx
+    ; rts
+
+@pta_chk_special:	
 	cmp #$e0                     ; special keys like AltGr
 	bne @pta_chk_release
     lda ZP_KEYB_FLAGS
@@ -368,13 +386,19 @@ ps2_to_ascii:
 	rts
 @pta_chk_release:
     cmp #$f0                     ; key release code $f0
-    bne @pta_chk_capslock
+    bne @pta_chk_error
     lda ZP_KEYB_FLAGS
 	ora #PS2_RELEASE
 	sta ZP_KEYB_FLAGS
 	lda #0
 	plx
 	rts
+@pta_chk_error:
+    cmp #$80
+    bcc @pta_chk_capslock        ; bcc checks less than; if scancode is >= $80, no valid scancode, e.g. $ff due to framing error
+    lda #0
+    plx
+    rts
 @pta_chk_capslock:	
     cmp #$58                     ; key capsLock code $58
 	bne @pta_chk_shift
@@ -624,14 +648,13 @@ KEYB_ihandler:
     lda KEYB_SR
     
     ; The bottom bit is the stop bit, which should be set
-    ror
+    ror  ; carry (whatever it is here) is in bit 7 and bit 0 (stop bit) is in carry now
     bcc irq_via_ps2_framingerror    ; if carry is clear (stop bit = 0) => error
 
     ; Next is parity - then the last data bit.  Add the data bit to the result byte.
-    ; The parity will move to the bit 7 of A.
-    ror
-    ror
-    rol ZP_KEYB_RD_RESULT
+    ror  ; stop bit is in bit 7, parity bit is now in carry.
+    ror  ; last data bit is now in carry, parity bit is in bit 7.
+    rol ZP_KEYB_RD_RESULT  ; Add data bit in carry to the result byte.
 
     ; The bits of the result byte are now in reverse order - the non-IRQ code can deal with that though
 
@@ -693,29 +716,31 @@ irq_via_ps2_framingerror:
 
 .segment "RODATA"
 
+ps2_hex_chars: .byte '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+
 ; Due to hardware design, the bits of the PS/2 scancode are in reverse order (comming in via shift register).
 ; This table reverses them back to normal.
 ; So, scan code $01 (0000 0001) becomes $80 (1000 0000), scan code $1C (0001 1100) 'Ascii A' becomes $38 (0011 1000), etc.
 ; Means, if we get a $38 from hardware, we need to look up $38 in this table to get the correct scancode $1C,
 ; which later is mapped to the correct ASCII value 'A' (see ps2_to_ascii tables below ps2_to_ascii_[lower, upper, altgr]).
 ps2_scancode_reverse:
-  ;      0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F  
-  .byte $00, $80, $40, $c0, $20, $a0, $60, $e0, $10, $90, $50, $d0, $30, $b0, $70, $f0 ; 0
-  .byte $08, $88, $48, $c8, $28, $a8, $68, $e8, $18, $98, $58, $d8, $38, $b8, $78, $f8 ; 1
-  .byte $04, $84, $44, $c4, $24, $a4, $64, $e4, $14, $94, $54, $d4, $34, $b4, $74, $f4 ; 2
-  .byte $0c, $8c, $4c, $cc, $2c, $ac, $6c, $ec, $1c, $9c, $5c, $dc, $3c, $bc, $7c, $fc ; 3
-  .byte $02, $82, $42, $c2, $22, $a2, $62, $e2, $12, $92, $52, $d2, $32, $b2, $72, $f2 ; 4
-  .byte $0a, $8a, $4a, $ca, $2a, $aa, $6a, $ea, $1a, $9a, $5a, $da, $3a, $ba, $7a, $fa ; 5
-  .byte $06, $86, $46, $c6, $26, $a6, $66, $e6, $16, $96, $56, $d6, $36, $b6, $76, $f6 ; 6
-  .byte $0e, $8e, $4e, $ce, $2e, $ae, $6e, $ee, $1e, $9e, $5e, $de, $3e, $be, $7e, $fe ; 7
-  .byte $01, $81, $41, $c1, $21, $a1, $61, $e1, $11, $91, $51, $d1, $31, $b1, $71, $f1 ; 8
-  .byte $09, $89, $49, $c9, $29, $a9, $69, $e9, $19, $99, $59, $d9, $39, $b9, $79, $f9 ; 9
-  .byte $05, $85, $45, $c5, $25, $a5, $65, $e5, $15, $95, $55, $d5, $35, $b5, $75, $f5 ; A
-  .byte $0d, $8d, $4d, $cd, $2d, $ad, $6d, $ed, $1d, $9d, $5d, $dd, $3d, $bd, $7d, $fd ; B
-  .byte $03, $83, $43, $c3, $23, $a3, $63, $e3, $13, $93, $53, $d3, $33, $b3, $73, $f3 ; C
-  .byte $0b, $8b, $4b, $cb, $2b, $ab, $6b, $eb, $1b, $9b, $5b, $db, $3b, $bb, $7b, $fb ; D
-  .byte $07, $87, $47, $c7, $27, $a7, $67, $e7, $17, $97, $57, $d7, $37, $b7, $77, $f7 ; E
-  .byte $0f, $8f, $4f, $cf, $2f, $af, $6f, $ef, $1f, $9f, $5f, $df, $3f, $bf, $7f, $ff ; F
+    ;      0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F  
+    .byte $00, $80, $40, $c0, $20, $a0, $60, $e0, $10, $90, $50, $d0, $30, $b0, $70, $f0 ; 0
+    .byte $08, $88, $48, $c8, $28, $a8, $68, $e8, $18, $98, $58, $d8, $38, $b8, $78, $f8 ; 1
+    .byte $04, $84, $44, $c4, $24, $a4, $64, $e4, $14, $94, $54, $d4, $34, $b4, $74, $f4 ; 2
+    .byte $0c, $8c, $4c, $cc, $2c, $ac, $6c, $ec, $1c, $9c, $5c, $dc, $3c, $bc, $7c, $fc ; 3
+    .byte $02, $82, $42, $c2, $22, $a2, $62, $e2, $12, $92, $52, $d2, $32, $b2, $72, $f2 ; 4
+    .byte $0a, $8a, $4a, $ca, $2a, $aa, $6a, $ea, $1a, $9a, $5a, $da, $3a, $ba, $7a, $fa ; 5
+    .byte $06, $86, $46, $c6, $26, $a6, $66, $e6, $16, $96, $56, $d6, $36, $b6, $76, $f6 ; 6
+    .byte $0e, $8e, $4e, $ce, $2e, $ae, $6e, $ee, $1e, $9e, $5e, $de, $3e, $be, $7e, $fe ; 7
+    .byte $01, $81, $41, $c1, $21, $a1, $61, $e1, $11, $91, $51, $d1, $31, $b1, $71, $f1 ; 8
+    .byte $09, $89, $49, $c9, $29, $a9, $69, $e9, $19, $99, $59, $d9, $39, $b9, $79, $f9 ; 9
+    .byte $05, $85, $45, $c5, $25, $a5, $65, $e5, $15, $95, $55, $d5, $35, $b5, $75, $f5 ; A
+    .byte $0d, $8d, $4d, $cd, $2d, $ad, $6d, $ed, $1d, $9d, $5d, $dd, $3d, $bd, $7d, $fd ; B
+    .byte $03, $83, $43, $c3, $23, $a3, $63, $e3, $13, $93, $53, $d3, $33, $b3, $73, $f3 ; C
+    .byte $0b, $8b, $4b, $cb, $2b, $ab, $6b, $eb, $1b, $9b, $5b, $db, $3b, $bb, $7b, $fb ; D
+    .byte $07, $87, $47, $c7, $27, $a7, $67, $e7, $17, $97, $57, $d7, $37, $b7, $77, $f7 ; E
+    .byte $0f, $8f, $4f, $cf, $2f, $af, $6f, $ef, $1f, $9f, $5f, $df, $3f, $bf, $7f, $ff ; F
 
 ; Special Case Mappings (might be more, so add some if in need):
 ;   Left Arrow:  scancode $6b -> Ascii $14   Esc[D
@@ -740,20 +765,20 @@ ps2_to_ascii_lower:
     .byte $00, $00, $00, $00, $00, "q", "1", $00, $00, $00, "z", "s", "a", "w", "2", $00 ; 1
     .byte $00, "c", "x", "d", "e", "4", "3", $00, $00, " ", "v", "f", "t", "r", "5", $00 ; 2
     .byte $00, "n", "b", "h", "g", "y", "6", $00, $00, $00, "m", "j", "u", "7", "8", $00 ; 3
-    .byte $00, ",", "k", "i", "o", "0", "9", $00, $00, ".", "-", "l", "ö", "p", "ß", $00 ; 4
-    .byte $00, $00, "ä", $00, "ü", $B4, $00, $00, $00, $00, $0D, "+", $00, "#", $00, $00 ; 5 - $B4 = acute accent "´", $0D = carriage return
+    .byte $00, ",", "k", "i", "o", "0", "9", $00, $00, ".", "-", "l", $ef, "p", $e2, $00 ; 4 - $ef/$f6 = ö ($ef = lcd), $e2/$df = sharp s "ß" ($e2 = lcd)
+    .byte $00, $00, $e1, $00, $f5, $07, $00, $00, $00, $00, $0D, "+", $00, "#", $00, $00 ; 5 - $e1/$e4 = ä ($e1 = lcd), $f5/$fc = ü ($f5 = lcd), $07/$B4 = acute accent "´" ($07 da lcd eigen definiert), $0D = carriage return
     .byte $00, "<", $00, $00, $00, $00, $08, $00, $00, $03, $00, $14, $02, $00, $00, $00 ; 6 - $08 = backspace, $03 = end, $14 = left, $02 = home
     .byte $1a, $18, $12, $00, $13, $11, $1B, $00, $00, $00, $0f, $00, $00, $0e, $00, $00 ; 7 - $1a = ins, $18 = del, $12 = down, $13 = right, $11 = up, $1B = esc, $0f = PgDown, $0e = PgUp
 
 ; Shifted characters (upper case letters, symbols) are mapped in the following table.
 ps2_to_ascii_upper:
     ;      0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F  
-    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $09, "°", $00 ; 0 - $09 = tab, $b0 = degree sign
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $09, $df, $00 ; 0 - $09 = tab, $df/$b0 = degree sign ($df = lcd)
     .byte $00, $00, $00, $00, $00, "Q", "!", $00, $00, $00, "Z", "S", "A", "W", $22, $00 ; 1 - $22 = double quote
-    .byte $00, "C", "X", "D", "E", "$", "§", $00, $00, " ", "V", "F", "T", "R", "%", $00 ; 2
+    .byte $00, "C", "X", "D", "E", "$", $06, $00, $00, " ", "V", "F", "T", "R", "%", $00 ; 2 - $06/$a7 = section sign "§" ($06 da lcd eigen definiert)
     .byte $00, "N", "B", "H", "G", "Y", "&", $00, $00, $00, "M", "J", "U", "/", "(", $00 ; 3
-    .byte $00, ";", "K", "I", "O", "=", ")", $00, $00, ":", "_", "L", "Ö", "P", "?", $00 ; 4
-    .byte $00, $00, "Ä", $00, "Ü", "`", $00, $00, $00, $00, $0D, "*", $00, "'", $00, $00 ; 5 - $0D = carriage return
+    .byte $00, ";", "K", "I", "O", "=", ")", $00, $00, ":", "_", "L", $03, "P", "?", $00 ; 4 - $03/$d6 = Ö ($03 da lcd eigen definiert)
+    .byte $00, $00, $02, $00, $04, "`", $00, $00, $00, $00, $0D, "*", $00, "'", $00, $00 ; 5 - $02/$c4 = Ä ($02 da lcd eigen definiert), $04/$dc = Ü ($04 da lcd eigen definiert), $0D = carriage return
     .byte $00, ">", $00, $00, $00, $00, $08, $00, $00, $03, $00, $14, $02, $00, $00, $00 ; 6 - $08 = backspace, $03 = end, $14 = left, $02 = home
     .byte $1a, $18, $12, $00, $13, $11, $1B, $00, $00, $00, $0f, $00, $00, $0e, $00, $00 ; 7 - $1a = ins, $18 = del, $12 = down, $13 = right, $11 = up, $1B = esc, $0f = PgDown, $0e = PgUp
 
@@ -761,10 +786,10 @@ ps2_to_ascii_upper:
 ps2_to_ascii_altgr:
     ;      0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F   
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $09, $00, $00 ; 0 - $09 = tab
-    .byte $00, $00, $00, $00, $00, "@", $00, $00, $00, $00, $00, $00, $00, $00, "²", $00 ; 1
-    .byte $00, $00, $00, $00, "€", $00, "³", $00, $00, $00, $00, $00, $00, $00, $00, $00 ; 2
-    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, "µ", $00, $00, "{", "[", $00 ; 3
-    .byte $00, $00, $00, $00, $00, "}", "]", $00, $00, $00, $00, $00, $00, $00, $5C, $00 ; 4 - $5C = backslash
+    .byte $00, $00, $00, $00, $00, "@", $00, $00, $00, $00, $00, $00, $00, $00, $b2, $00 ; 1 - $b2 = squared sign
+    .byte $00, $00, $00, $00, $05, $00, $b3, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; 2 - $05/$80 = euro sign ($05 da lcd eigen definiert), $b3 = cubed sign
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $e4, $00, $00, "{", "[", $00 ; 3 - $e4/$b5 = micro sign ($e4 = lcd)
+    .byte $00, $00, $00, $00, $00, "}", "]", $00, $00, $00, $00, $00, $00, $00, $01, $00 ; 4 - $01/$5C = backslash ($01 da lcd eigen definiert)
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $0D, "~", $00, $00, $00, $00 ; 5 - $0D = carriage return
     .byte $00, "|", $00, $00, $00, $00, $08, $00, $00, $03, $00, $14, $02, $00, $00, $00 ; 6 - $08 = backspace, $03 = end, $14 = left, $02 = home
     .byte $1a, $18, $12, $00, $13, $11, $1B, $00, $00, $00, $0f, $00, $00, $0e, $00, $00 ; 7 - $1a = ins, $18 = del, $12 = down, $13 = right, $11 = up, $1B = esc, $0f = PgDown, $0e = PgUp
