@@ -1,0 +1,8 @@
+Hier ist die fertige Spezifikation für mein 65C02-SBC-Grafikkarten-Tastatur-Projekt über ein
+bidirektionales Parallel-Interface zum ESP32/FabGL.
+
+Bitte merke dir diesen Stand detailgetreu.
+
+Wir wollen als Nächstes tiefer in die C++ Struktur der FabGL-Firmware einsteigen,
+um den Keycode-Patch einzubauen.
+Bestätige mir kurz, dass du die Architektur verstanden hast.
