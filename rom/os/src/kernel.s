@@ -27,25 +27,6 @@ reset:
   jsr KEYB_init
   cli
 
-  ; Configure EhBASIC's RAM I/O vectors and start BASIC at $C836.
-  lda #<kernel_getc
-  sta $0205
-  lda #>kernel_getc
-  sta $0206
-  lda #<kernel_putc_ACIA
-  sta $0207
-  lda #>kernel_putc_ACIA
-  sta $0208
-  lda #<basic_file_stub
-  sta $0209
-  sta $020b
-  lda #>basic_file_stub
-  sta $020a
-  sta $020c
-  jsr BASIC_ENTRY
-  
-  cli
-
 @welcome:
   ; Print welcome message
   jsr shell_newline_ACIA
@@ -58,40 +39,56 @@ reset:
   jmp @shell_welcome_char
 @shell_welcome_done:
 
+  ; Configure EhBASIC's RAM I/O vectors and start BASIC at $C836.
+  lda #<kernel_getc
+  sta $0205
+  lda #>kernel_getc
+  sta $0206
+  lda #<kernel_putc
+  sta $0207
+  lda #>kernel_putc
+  sta $0208
+  lda #<basic_file_stub
+  sta $0209
+  sta $020b
+  lda #>basic_file_stub
+  sta $020a
+  sta $020c
+  jsr BASIC_ENTRY
+  
+  cli
+
   ; print keyboard init result (keyb err, keyb ok)
-  lda ZP_KEYB_INIT_RESULT
-  cmp #$01           ; keyboard error
-  beq @keyb_err
+  ; lda ZP_KEYB_INIT_RESULT
+  ; cmp #$01           ; keyboard error
+  ; beq @keyb_err
 
-  ldx #0
-@keyb_ok_char:
-  lda keyb_ok, X
-  beq @keyb_feedback_done
-  jsr kernel_putc
-  inx
-  jmp @keyb_ok_char
-
-@keyb_err:
-  ldx #0
-@keyb_error_char:
-  lda keyb_err, X
-  beq @keyb_feedback_done
-  jsr kernel_putc
-  inx
-  jmp @keyb_error_char
-
-@keyb_feedback_done:
+  ; ldx #0
+; @keyb_ok_char:
+  ; lda keyb_ok, X
+  ; beq @keyb_feedback_done
+  ; jsr kernel_putc
+  ; inx
+  ; jmp @keyb_ok_char
+; 
+; @keyb_err:
+  ; ldx #0
+; @keyb_error_char:
+  ; lda keyb_err, X
+  ; beq @keyb_feedback_done
+  ; jsr kernel_putc
+  ; inx
+  ; jmp @keyb_error_char
+; 
+; @keyb_feedback_done:
   
   jsr shell_newline
 
-
-
-;keyboard_check:
-;  jsr KEYB_get__wait
+keyboard_check:
+  jsr KEYB_get__wait   ; returns ASCII char in .A
+  jsr kernel_putc      ; echo char
 ;  jsr hex_print_byte  
-;  jmp keyboard_check
-
-
+  jmp keyboard_check
 
 shell_next_command:
   ; Clear buffer
@@ -289,7 +286,7 @@ shell_rx_main:
   lda #$15                  ; NAK gets started
   jsr kernel_putc
 ;  lda SPEAKER               ; Click each time we send a NAK or ACK
-  jsr shell_rx_receive_with_timeout  ; Check in loop w/ timeout
+  jsr ACIA_get_byte_timeout  ; Check in loop w/ timeout
   bcc @shell_block_nak     ; Not received yet
   cmp #$01                 ; If we do have char, should be SOH
   bne @shell_rx_fail       ; Terminate transfer if we dont get SOH
@@ -337,29 +334,6 @@ shell_rx_main:
 @shell_rx_fail:
   lda #1
   jmp sys_exit
-
-; Like kernel_ACIA_getc, but terminates after a short time if nothing is received
-; TODO: must use ACIA function, which might be provided in acia.s first (termninating by timeout).
-shell_rx_receive_with_timeout:
-  ldy #$ff
-@y_loop:
-  ldx #$ff
-@x_loop:
-  lda ACIA_STATUS              ; check ACIA status in inner loop
-  and #$08                     ; mask rx buffer status flag
-  bne @rx_got_char
-  dex
-  cpx #0
-  bne @x_loop
-  dey
-  cpy #0
-  bne @y_loop
-  clc                          ; no byte received in time
-  rts
-@rx_got_char:
-  lda ACIA_DATA                ; get byte from ACIA data port
-  sec                          ; set carry bit
-  rts
 
 shell_rx_sleep_seconds: ; sleep for 0-63 seconds (approx)
   pha                   ; save registers
@@ -555,14 +529,13 @@ ACIA_Get_Char_Wait:
 
 ; KERNEL routine getc
 kernel_getc:
-    jsr KEYB_get__wait
+  jsr KEYB_get__wait
 	beq kernel_getc
 	rts
 	
 ; KERNEL routine putc
 kernel_putc:
-        ; Print a single character via ACIA.
-        ;; Uses: A (original value restored)
+        ; Print a single character via LCD and ACIA.
         jsr LCD_print_char
 kernel_putc_ACIA:
         jsr ACIA_send_byte

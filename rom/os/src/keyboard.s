@@ -259,7 +259,7 @@ ps2_write:
     ; Then send data bits one per tick
     ; Then send parity bit and stop bit
     ; Then can read acknowledgement from device
-  
+
 	; Clock low, data low
     pha
     lda KEYB_PORT
@@ -271,13 +271,13 @@ ps2_write:
     lda KEYB_PCR        ; set CB2
 	ora #$c0            ; to low output
     sta KEYB_PCR
-  
+
 	; Wait a while
     ldy #0
     ldx #1              ; sleep 100us
     jsr __kernel_sleep
 
- 	; Let the clock float again
+    ; Let the clock float again
     lda KEYB_DDR
     and #%10111111
 	sta KEYB_DDR        ; set PB6 as input
@@ -584,6 +584,8 @@ KEYB_ihandler:
     and #$24                  ; Timer-2 ($20) or ShiftRegister ($04) interrupt
     bne @irq_via_ps2
 
+; ISRs called by main ISR are called by jmp, not jsr, to save cycles in ISR chain.
+; So we must get back the saved registers and return with RTI (leave the ISR-chain), not RTS.
     ply                       ; restore y
     plx                       ; restore x
     pla                       ; restore Akku
@@ -606,6 +608,8 @@ KEYB_ihandler:
 
     sta ZP_KEYB_RD_RESULT
 
+; ISRs called by main ISR are called by jmp, not jsr, to save cycles in ISR chain.
+; So we must get back the saved registers and return with RTI (leave the ISR-chain), not RTS.
     ply                       ; restore y
     plx                       ; restore x
     pla                       ; restore Akku
@@ -652,7 +656,8 @@ KEYB_ihandler:
     lda ZP_KEYB_RD_RESULT
     KEYB_ADD_TO_BUFFER
 
-    ; Done
+; ISRs called by main ISR are called by jmp, not jsr, to save cycles in ISR chain.
+; So we must get back the saved registers and return with RTI (leave the ISR-chain), not RTS.
     ply                       ; restore y
     plx                       ; restore x
     pla                       ; restore Akku
@@ -678,6 +683,8 @@ irq_via_ps2_framingerror:
     lda #$ff
     KEYB_ADD_TO_BUFFER
 
+; ISRs called by main ISR are called by jmp, not jsr, to save cycles in ISR chain.
+; So we must get back the saved registers and return with RTI (leave the ISR-chain), not RTS.
     ply                       ; restore y
     plx                       ; restore x
     pla                       ; restore Akku

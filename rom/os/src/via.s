@@ -30,7 +30,7 @@ VIA_init:
 	
     lda #$ff           ; all pins to output
     sta VIA_DDRB
-  
+
     ; lda #$aa
     ; sta VIA_PORTB
     ; lda #$55
@@ -39,7 +39,7 @@ VIA_init:
     ; sta VIA_PORTB
     ; lda #$55
     ; sta VIA_PORTB
-  
+
     ldx #$05
 loop:
     phx
@@ -49,7 +49,7 @@ loop:
 	ldy #>10000
 	ldx #<10000
     jsr __kernel_sleep
-  
+
     lda #$55
     sta VIA_PORTB
 	ldy #>10000
@@ -57,7 +57,7 @@ loop:
     jsr __kernel_sleep
 	
 	plx
-  
+
     dex
     bne loop
     ; jmp loop           ; endless loop
@@ -117,6 +117,9 @@ VIA_ihandler:                ; IRQ handler for VIA Timer. Must be called by over
     eor #$FF
     sta LEDS
     sta VIA_PORTB
+
+; ISRs called by main ISR are called by jmp, not jsr, to save cycles in ISR chain.
+; So we must get back the saved registers and return with RTI (leave the ISR-chain), not RTS.
 @VIA_ihandler_end:
     ply                      ; restore y
     plx                      ; restore x

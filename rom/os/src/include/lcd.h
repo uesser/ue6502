@@ -1,8 +1,6 @@
 .ifndef _LCD_H_
 _LCD_H_ = 1
 
-.import __IO_START__
-
 LCD_DDR  = VIA_DDRA
 LCD_PORT = VIA_PORTA
 

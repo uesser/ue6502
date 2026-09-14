@@ -35,7 +35,7 @@ LCD_init:
 	
     lda #%11111111 ; Set all pins on port to output
     sta LCD_DDR
-  
+
     jsr lcd_setup   ; Note: along with delay, this bludgeons A, X and Y (cold and warm reset of LCD)
     
     lda #%00101000 ; Set 4-bit mode; 2-line display; 5x8 font
@@ -61,7 +61,7 @@ LCD_init:
     inx
     cpx #LCDMAXCOL
     bne @init_buf
-  
+
     ply
     plx
 	pla
@@ -106,7 +106,7 @@ lcd_setup:
     ldy #0
     ldx #2
     jsr __kernel_sleep
-      
+
     lda #%00000011 ; Set 4-bit mode
     sta LCD_PORT
     ora #E
@@ -155,7 +155,6 @@ lcd_instruction:
     eor #E         ; Clear E bit
     sta LCD_PORT
     rts
-  
 ;================================================================================
 ;   lcd_wait - wait till LCD is not busy
 ;   ————————————————————————————————————
@@ -183,14 +182,14 @@ lcd_wait:
     pla                ; Get high nibble off stack
     and #%00001000
     bne @lcdbusy
-  
+
     lda #RW
     sta LCD_PORT
     lda #%11111111     ; LCD data is output
     sta LCD_DDR
     pla
     rts
-  
+
 ;================================================================================
 ;   lcd_writedata - send data to LCD
 ;   ————————————————————————————————————
@@ -239,7 +238,7 @@ LCD_clear:
     jsr lcd_setcursor
     pla
     rts
-  
+
 ;================================================================================
 ;   lcd_setcursor - sets cursor to ZP_LCD_COL, ZP_LCD_ROW
 ;   ————————————————————————————————————
@@ -263,7 +262,7 @@ lcd_setcursor:
     plx
     pla
     rts
-  
+
 ;================================================================================
 ;   LCD_backspace - sends backspace to LCD
 ;   ————————————————————————————————————
@@ -294,7 +293,7 @@ LCD_backspace:
     pla
     jsr lcd_setcursor
     rts
-  
+
 ;================================================================================
 ;   LCD_newline - sends newline (carriage return) to LCD
 ;   ————————————————————————————————————
@@ -310,7 +309,7 @@ LCD_newline:
     inx
     cpx #LCDROWS
     bne @lcd_newline_do
-  
+
     jsr lcd_scroll
     bra @lcd_newline_end
 @lcd_newline_do:
@@ -323,7 +322,7 @@ LCD_newline:
     plx
     jsr lcd_setcursor
     rts
-  
+
 ;================================================================================
 ;   LCD_print_hex - prints data as hexadecimal on LCD
 ;   ————————————————————————————————————
@@ -345,7 +344,7 @@ LCD_print_hex:
     lda hexmap, x
     jsr LCD_print_char
     pla
-  
+
     and #$0F
     tax
     lda hexmap, x
@@ -354,7 +353,7 @@ LCD_print_hex:
     pla
     plx
     rts
-  
+
 ;================================================================================
 ;   LCD_print_str - prints a string on LCD
 ;   ————————————————————————————————————
@@ -429,11 +428,11 @@ lcd_print_char_from_write_buf:  ; Aufruf aus lcd_write_buf raus
 lcd_write_buf:
     phx
     pha
-  
+
     ldx #LCDMAXCOL
     cpx ZP_LCD_BUF_IDX
     bne @write_buf
-  
+
     jsr lcd_scroll
 @write_buf:
     ldx ZP_LCD_BUF_IDX
@@ -476,7 +475,7 @@ lcd_scroll:
     inx
     cpx #LCDMAXCOL
     bne @init_line
-  
+
     lda #LCDMAXSCROLL
     sta ZP_LCD_BUF_IDX
     
@@ -513,4 +512,3 @@ lcdbufrowstart:
     .byte 20
     .byte 40
     .byte 60
-  
