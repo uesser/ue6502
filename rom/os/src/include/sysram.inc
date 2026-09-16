@@ -3,9 +3,10 @@ _SYSRAM_INC_ = 1
 
 .importzp ZP_LCD_COL
 .importzp ZP_LCD_ROW
+.importzp ZP_LCD_BUF_PTR
+.importzp ZP_LCD_TAB_WIDTH
 .importzp ZP_LCD_STR_PTR
 .importzp ZP_LCD_STR_PTR_HI
-.importzp ZP_LCD_BUF_IDX
 .importzp ZP_KEYB_TMP
 .importzp ZP_KEYB_RD_RESULT
 .importzp ZP_KEYB_WR_PTR
@@ -16,6 +17,10 @@ _SYSRAM_INC_ = 1
 .importzp ZP_ACIA_RD_PTR
 .importzp ZP_ACIA_SPTR
 .importzp ZP_VIA_TIMER_INT_CNT
+
+.import ACIA_BUFFER_SIZE
+.import KEYB_BUFFER_SIZE
+.import LCD_BUFFER_SIZE
 
 .import ACIA_BUFFER
 .import KEYB_BUFFER
@@ -28,5 +33,5 @@ _SYSRAM_INC_ = 1
 .import osversion
 .import copywrite 
 
-.include "sysram.h"
+;.include "sysram.h"
 .endif

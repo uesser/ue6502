@@ -37,7 +37,7 @@ SLEEP_HIGH = >SLEEP_BLOCKS
     ldx ZP_ACIA_WR_PTR
     sta ACIA_BUFFER, X
     inx
-    cpx #ACIA_BUFFER_SIZE
+    cpx #<ACIA_BUFFER_SIZE
     bne @wr_acia_buf_end
     ldx #0
 @wr_acia_buf_end:
@@ -49,7 +49,7 @@ SLEEP_HIGH = >SLEEP_BLOCKS
     ldx ZP_ACIA_RD_PTR
     lda ACIA_BUFFER, X
     inx
-    cpx #ACIA_BUFFER_SIZE
+    cpx #<ACIA_BUFFER_SIZE
     bne @rd_acia_buf_end
     ldx #0
 @rd_acia_buf_end:

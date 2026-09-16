@@ -52,7 +52,7 @@ katb_add:
 	; Store the character and update the buffer pointer
     sta KEYB_BUFFER, y
     iny
-    cpy #KEYB_BUFFER_SIZE
+    cpy #<KEYB_BUFFER_SIZE
     bne katb_wr_ptr
     ldy #0
 katb_wr_ptr:
@@ -142,7 +142,7 @@ KEYB_get__wait:
     sei
 	ldy ZP_KEYB_RD_PTR
 	iny
-	cpy #KEYB_BUFFER_SIZE
+	cpy #<KEYB_BUFFER_SIZE
 	bne @keyb_read_compare_with_wr__wait
 	ldy #0
 
@@ -506,9 +506,22 @@ ps2_to_ascii:
 	lda ZP_KEYB_FLAGS            
 	and #PS2_CAPSLOCK            ; check if capsLock code is set
 	bne @pta_caps_set
-    lda ps2_to_ascii_lower, X    ; default use ascii_lower
+
+    lda ZP_KEYB_FLAGS
+    and #PS2_CTRL
+    beq @pta_ordinary_key        ; Wenn CTRL nicht gedrückt -> direkt zum Standard-Code
+    lda ps2_to_ascii_lower, x    ; default use ascii_lower
+    cmp #$61                     ; Prüfe Untergrenze (a = Ctrl-A = ^A)
+    bcc @pta_no_ctrl_char        ; Wenn .A < 1 (also 0), springe weg (Carry-Flag ist gelöscht)
+    cmp #$7a                     ; Prüfe Obergrenze (z = CTRL-Z = ^Z)
+    bcs @pta_no_ctrl_char        ; Wenn A >= $1B (also $1B oder höher), springe weg (Carry gesetzt)
+    and #$1f                     ; Umwandlung in Control-Char ($01-$1A / ^A-^Z)
+@pta_no_ctrl_char:
 	bra @pta_end
-	
+@pta_ordinary_key:
+    lda ps2_to_ascii_lower, x    ; default use ascii_lower
+	bra @pta_end
+
 @pta_release_end:
 	lda #0
 	bra @pta_end

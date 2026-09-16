@@ -2,6 +2,7 @@
 _ACIA_INC_ = 1
 
 .include "cpu.inc"
+.include "ascii.h"
 
 .import ACIA_init
 .import ACIA_get_byte
@@ -22,7 +23,7 @@ _ACIA_INC_ = 1
 .macro ACIA_writeln str_addr
     ACIA_writestr str_addr
     jsr ACIA_send_string
-	lda #$0d              ; carriage return
+	lda #ASCII_CR              ; carriage return
 	jsr ACIA_send_byte
 .endmacro
 

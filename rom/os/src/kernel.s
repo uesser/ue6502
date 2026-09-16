@@ -3,6 +3,7 @@
 .include "cpu.inc"
 
 .include "constants.inc"
+.include "ascii.h"
 .include "sysram.inc"
 .include "kernelUtils.inc"
 .include "acia.inc"
@@ -88,25 +89,8 @@ keyboard_check:
   jsr KEYB_get__wait   ; returns ASCII char in .A
   cmp #$00             ; check if char received
   beq keyboard_check   ; no char received or invalid scancode or error codes fromn keyboard (e.g. $ff framing error) => loop
-  cmp 'c'
-  bne keyboard_CR
-  jsr KEYB_is_ctrl
-  beq keyboard_CR
-  jsr LCD_clear
-  jmp keyboard_check
-keyboard_CR:
-  cmp #$0d             ; Carriage Return
-  bne keyboard_backsp
-  jsr LCD_newline
-  jmp keyboard_check
-keyboard_backsp:
-  cmp #$08             ; backspace
-  bne keyboard_echo
-  jsr LCD_backspace
-  jmp keyboard_check
-keyboard_echo:
 ;  jsr hex_print_byte  
-  jsr kernel_putc      ; echo char
+  jsr kernel_putc      ; echo char - 08 (BS), 0C (^L), 0D (Return) werden im LCD behandelt. ^L = Form Feed = Clear Screen
   jmp keyboard_check
 
 shell_next_command:
@@ -129,7 +113,7 @@ shell_next_char:
   jsr kernel_getc         ; get from keyboard
   
   sta shell_cmd_tmp   ; possible future use
-  cmp #$0d            ; return key pressed?
+  cmp #ASCII_CR       ; return key pressed?
   beq @run_command    ; run the command
   ; TODO check for ASCII printable, backspace etc
   ; regular ascii char - save to buffer
@@ -213,10 +197,11 @@ keyb_err: .asciiz " (keyb err)"
 shell_prompt: .asciiz "# "
 
 shell_newline:
-  jsr LCD_newline
+  lda #ASCII_CR
+  jsr LCD_print_char
 
 shell_newline_ACIA:
-  lda #$0d
+  lda #ASCII_CR
   jsr ACIA_send_byte
   lda #$0a
   jsr ACIA_send_byte
@@ -391,7 +376,7 @@ shell_rx_print_chars:
   cmp #$03              ; Ctrl+C?
   beq @done
   jsr hex_print_byte    ; print as hex (2 digits)
-  lda #$20              ; space between chars
+  lda #ASCII_SPC        ; space between chars
   jsr kernel_putc
   plx
   dex
@@ -427,10 +412,10 @@ shell_rx_print_user_program: ; Print the first 255 bytes of uploaded user progra
   phx
   jsr hex_print_byte_ACIA    ; Print the char (clobbers X)
   plx
-  lda #$20              ; space between chars
+  lda #ASCII_SPC             ; space between chars
   jsr kernel_putc_ACIA
   iny
-  cpy #0                ; Wrap-around at 255 bytes
+  cpy #0                     ; Wrap-around at 255 bytes
   beq @user_program_done
   dex
   cpx #0
