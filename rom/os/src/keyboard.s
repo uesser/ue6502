@@ -5,6 +5,7 @@
 .include "cpu.inc"
 
 .include "constants.inc"
+.include "ascii.h"
 .include "sysram.inc"
 .include "kernelUtils.inc"
 .include "via.inc"
@@ -12,7 +13,7 @@
 .include "keyboard.h"
 
 .export KEYB_init
-.export KEYB_get__wait
+.export KEYB_get_wait
 .export KEYB_is_shift
 .export KEYB_is_capslock
 .export KEYB_is_ctrl
@@ -111,7 +112,7 @@ KEYB_init:
     sta KEYB_ACR
 
     ; Some USB-compatible keyboards dont act as PS/2 keyboards unless we send a reset command to them first
-    lda #$ff
+    lda #PS2_RESET
     jsr ps2_write
 
     ; Prepare for the first character
@@ -123,12 +124,90 @@ KEYB_init:
     sta KEYB_IFR
     lda #$80 + $24
     sta KEYB_IER
-    
+
+    ; Check auf ACK/BAT $FA $AA
+
+    ; 1. Auf das ACK-Byte (0xFA) warten
+    ldx #50                       ; 50 Millisekunden Timeout für das ACK
+    jsr PS2_get_wait_timeout
+    bcs @init_failed              ; Timeout -> Fehler
+    cmp #PS2_ACK
+    bne @init_failed              ; Falsches Byte -> Fehler
+
+    ; 2. Auf das BAT-Byte (0xAA) warten
+    ldx #250                      ; Erste 250 ms für den Selbsttest warten
+    jsr PS2_get_wait_timeout
+    bcc @check_bat                ; Byte ist da? Dann direkt prüfen!
+
+    ; Falls die Tastatur etwas träger ist: Weitere 250 ms dranhängen (Gesamt 500 ms)
+    ldx #250                      
+    jsr PS2_get_wait_timeout
+    bcs @init_failed              ; Nach fast einer halben Sekunde immer noch nichts? -> Fehler
+
+@check_bat:
+    cmp #PS2_BAT
+    bne @init_failed              ; Falsches Byte -> Fehler
+
+    ; Erfolgreich!
+    lda #KB_STATUS_OK
+    rts
+
+@init_failed:
+    lda #KB_STATUS_ERR
+    rts
+
+; =============================================================================
+; ps2_pop_scancode - gets a scan/keyb code from buffer, if exists.
+;
+;   ————————————————————————————————————
+;   Parameters:      none
+;   Returned Values: .A as scancode if Carry is clear (0)
+;                    Carry SET (1): buffer is empty
+;   Destroys:        .A, .F
+;   ————————————————————————————————————
+; =============================================================================
+ps2_pop_scancode:
+    phy
+
+    sei                         ; Interrupts sperren für zeigerkonsistenz
+    ldy ZP_KEYB_RD_PTR
+    iny
+    cpy #<KEYB_BUFFER_SIZE
+    bne @compare_pointers
+    ldy #0
+
+@compare_pointers:
+    cpy ZP_KEYB_WR_PTR
+    beq @buffer_empty           ; Wenn Lese- und Schreibzeiger gleich -> Leer!
+
+    ; Byte ist da! Auslesen und Zeiger aktualisieren
+    lda KEYB_BUFFER, y
+    sty ZP_KEYB_RD_PTR
+    cli                         ; Interrupts wieder erlauben
+
+    ; Bits umdrehen (da VIA SR und PS/2 gespiegelt arbeiten)
+    tay
+    lda ps2_scancode_reverse, y ; .A hält nun den echten PS/2 Code (z.B. $FA, $AA (Ack and Basic Assurance Test (BAT)), $1C = 'A')
+
+    ; =======================================================
+    ; DIAGNOSE: Jedes ausgelesene Byte sofort im LCD anzeigen
+    ; =======================================================
+;    jsr LCD_print_hex           ; Zeigt den Wert in .A an (.A bleibt unberührt)
+    ; =======================================================
+
+    clc                         ; Carry Clear = Erfolg
+    ply
+    rts
+@buffer_empty:
+    lda #0
+    sec                         ; Carry Set = Puffer leer
+    cli                         ; Interrupts wieder freigeben
+    ply
     rts
 
 ;================================================================================
-;   KEYB_get__wait - Get ASCII from keyboard buffer
-;                    waits for next keystroke/scancode
+;   KEYB_get_wait - Get ASCII from keyboard buffer
+;                   waits for next keystroke/scancode
 ;   ————————————————————————————————————
 ;   Parameters:      none
 ;   Returned Values: .A as ASCII or $00 if special key (ctrl, shift, ...) or
@@ -136,39 +215,91 @@ KEYB_init:
 ;   Destroys:        .A
 ;   ————————————————————————————————————
 ;================================================================================
-KEYB_get__wait:
-    phy
-@keyb_wait_for_scancode__wait:	
-    sei
-	ldy ZP_KEYB_RD_PTR
-	iny
-	cpy #<KEYB_BUFFER_SIZE
-	bne @keyb_read_compare_with_wr__wait
-	ldy #0
-
-@keyb_read_compare_with_wr__wait:
-	cpy ZP_KEYB_WR_PTR
-	bne @keyb_read_from_buffer_gotchar__wait
+KEYB_get_wait:
+@keyb_wait_for_scancode_wait:	
+    jsr ps2_pop_scancode
+    bcc @keyb_read_from_buffer_gotchar_wait       ; Carry Clear means got scancode from keyboard buffer
 
 	; The buffer is empty, wait for an interrupt
 	wai
 	cli
-	bra @keyb_wait_for_scancode__wait
+	bra @keyb_wait_for_scancode_wait
 
-@keyb_read_from_buffer_gotchar__wait:
-	cli
-
-	lda KEYB_BUFFER, y
-	sty ZP_KEYB_RD_PTR
-
-	; The bits are backwards because the PS/2 protocol and 6522 shift register work in opposite ways
-    tay
-	lda ps2_scancode_reverse, y     ; .A holds the correct key scancode now
-
+@keyb_read_from_buffer_gotchar_wait:
     jsr ps2_to_ascii
 
-	ply
 	rts
+
+;================================================================================
+;   KEYB_get_wait_timeout  - Get ASCII from keyboard buffer
+;                            waits for next keystroke till timeout of 10ms
+;   ————————————————————————————————————
+;   Parameters:      none
+;   Returned Values: .A as ASCII or $00 if special key (ctrl, shift, ...) or
+;                       no valid scancode
+;   Destroys:        .A
+;   ————————————————————————————————————
+;================================================================================
+KEYB_get_wait_timeout:
+    plx
+    ldx #10                      ; 10 Millisekunden warten
+    jsr PS2_get_wait_timeout
+    bcs @kgwt_exit
+    jsr ps2_to_ascii
+@kgwt_exit:
+    plx
+    rts
+
+;================================================================================
+;   PS2_get_wait_timeout  - Holt einen Scancode aus dem Puffer mit
+;                           flexiblem Timeout
+;   ————————————————————————————————————
+;   Parameters:      .X = Timeout in Millisekunden (1 bis 255)
+;                         (0 bedeutet: Nur einmal kurz prüfen und sofort zurück)
+;   Returned Values: .A = Scancode, if Carry Clear (0)
+;                         Carry Set (1) = Timeout (no scan code in buffer)
+;   Destroys:        .A
+;   ————————————————————————————————————
+;================================================================================
+PS2_get_wait_timeout:
+    phx
+    phy
+    
+    txa                          ; Timeout-Wert aus .X in .A holen
+    pha                          ; Und sicher auf dem Stack parken (Unser Zähler)
+
+@pgwt_check_buffer:
+    jsr ps2_pop_scancode         ; Schau in den RAM-Puffer
+    bcc @pgwt_found              ; Byte da? -> Carry Clear, fertig!
+
+    ; Wenn Puffer leer, holen wir den Zähler vom Stack, um ihn zu prüfen
+    pla                          ; Aktuellen Zählerstand holen
+    beq @pgwt_timeout            ; Wenn Zähler auf 0 -> Timeout!
+    dec                          ; Zähler für diese Millisekunde verringern
+    pha                          ; Neuen Zählerstand sofort wieder auf dem Stack sichern
+
+    ; --- 1 Millisekunde warten via __kernel_sleep ---
+    ; Da __kernel_sleep X und Y zerstört, müssen wir sie für jeden Aufruf laden
+    ldx #10                      ; 10 * 100µs = 1000µs = 1ms
+    ldy #0
+    jsr __kernel_sleep
+
+    bra @pgwt_check_buffer       ; Und wieder von vorn prüfen
+
+@pgwt_found:
+    ply                          ; Den ungenutzten Zähler vom Stack aufräumen!
+    ply
+    plx
+    clc                          ; Erfolg!
+    rts
+
+@pgwt_timeout:
+    ; Der Stack ist an dieser Stelle durch das 'pla' oben bereits sauber, braucht also nicht von Stack abgeräumt zu werden!
+    ply
+    plx
+    lda #0
+    sec                          ; Fehler / Timeout!
+    rts
 
 ;================================================================================
 ;   KEYB_is_shift - returns 0 if shift is not set, != 0 else
@@ -363,6 +494,8 @@ ps2_write_bit:
 ;================================================================================
 ps2_to_ascii:
     phx
+    phy
+    pha                           ; scan code sichern
 
     ; Nur zum Test: print scancode as hex
     ; jsr LCD_print_hex
@@ -372,186 +505,219 @@ ps2_to_ascii:
     ; bne @pta_chk_special
     ; tax                          ; swap A to X => to have the index into the lookup tables
     ; lda ps2_to_ascii_upper, X    ; default use ascii_lower
+    ; pla
+    ; ply
     ; plx
     ; rts
 
-@pta_chk_special:	
-	cmp #$e0                     ; special keys like AltGr
-	bne @pta_chk_release
+    ; 1. Vorab-Prüfung auf Protokoll-Scancodes ($E0, $F0, Fehler)
+    cmp #$e0                      ; Special keys wie AltGr Präfix
+    bne @no_special
     lda ZP_KEYB_FLAGS
-	ora #PS2_SPECIAL
-	sta ZP_KEYB_FLAGS
-	lda #0
-	plx
-	rts
-@pta_chk_release:
-    cmp #$f0                     ; key release code $f0
-    bne @pta_chk_error
-    lda ZP_KEYB_FLAGS
-	ora #PS2_RELEASE
-	sta ZP_KEYB_FLAGS
-	lda #0
-	plx
-	rts
-@pta_chk_error:
-    cmp #$80
-    bcc @pta_chk_capslock        ; bcc checks less than; if scancode is >= $80, no valid scancode, e.g. $ff due to framing error
-    lda #0
-    plx
-    rts
-@pta_chk_capslock:	
-    cmp #$58                     ; key capsLock code $58
-	bne @pta_chk_shift
-    lda ZP_KEYB_FLAGS
-	and #PS2_RELEASE             ; check if release is set
-	bne @pta_capslock_rel
-    lda ZP_KEYB_FLAGS
-	eor #PS2_CAPSLOCK            ; invert CAPSLOCK
-	sta ZP_KEYB_FLAGS
-	and #PS2_CAPSLOCK            ; check if CAPSLOCK is on
-	beq @pta_capslock_off
-	lda #1                       ; CAPSLOCK led on
-	jsr ps2_set_capslock_led
-	bra @pta_capslock_end
-@pta_capslock_off:
-	lda #0                       ; CAPSLOCK led off
-	jsr ps2_set_capslock_led
-@pta_capslock_rel:
-	lda ZP_KEYB_FLAGS
-	and #PS2_RELEASE_END         ; set release off
-	sta ZP_KEYB_FLAGS
-@pta_capslock_end:
-	lda #0
-	plx
-	rts
-@pta_chk_shift:	
-    cmp #$12                     ; key left-shift code $12
-	beq @pta_shift
-    cmp #$59                     ; key right-shift code $59
-	bne @pta_chk_ctrl
-@pta_shift:
-    lda ZP_KEYB_FLAGS
-	and #PS2_RELEASE             ; check if release is set
-	bne @pta_shift_rel
-	lda ZP_KEYB_FLAGS
-	ora #PS2_SHIFT               ; set shift on
-	bra @pta_shift_sav
-@pta_shift_rel:
-	lda ZP_KEYB_FLAGS
-	and #PS2_SHIFT_END           ; set shift and release off
-@pta_shift_sav:
-	sta ZP_KEYB_FLAGS
-	lda #0
-	plx
-	rts
-@pta_chk_ctrl:	
-    cmp #$14                     ; key ctrl code $14  (left-ctrl = $14, right-ctrl = $e0 $14)
-	bne @pta_chk_alt
-    lda ZP_KEYB_FLAGS
-	and #PS2_RELEASE             ; check if release is set
-	bne @pta_ctrl_rel
-	lda ZP_KEYB_FLAGS
-	ora #PS2_CTRL                ; set ctrl on
-	bra @pta_ctrl_sav
-@pta_ctrl_rel:
-	lda ZP_KEYB_FLAGS
-	and #PS2_CTRL_END            ; set ctrl and release off
-@pta_ctrl_sav:
-	sta ZP_KEYB_FLAGS
-	lda #0
-	plx
-	rts
-@pta_chk_alt:	
-    cmp #$11                     ; key alt code $11, key altGr code $e0 $11
-	bne @pta_chk_ordinary                 
-    lda ZP_KEYB_FLAGS
-	and #PS2_RELEASE             ; check if release is set
-	bne @pta_alt_rel
-	lda ZP_KEYB_FLAGS
-	and #PS2_SPECIAL
-	bne @pta_altgr
-	ora #PS2_ALT                ; set alt on
-	bra @pta_alt_sav
-@pta_altgr:
-    ora #PS2_ALTGR              ; set altgr on
-	bra @pta_alt_sav
-@pta_alt_rel:
-	lda ZP_KEYB_FLAGS
-	and #PS2_SPECIAL
-	bne @pta_altgr_end
-	lda ZP_KEYB_FLAGS
-	and #PS2_ALT_END            ; set alt and release off
-	bra @pta_alt_sav
-@pta_altgr_end:
-	lda ZP_KEYB_FLAGS
-	and #PS2_ALTGR_END          ; set altgr and release off
-@pta_alt_sav:
-	sta ZP_KEYB_FLAGS
-	lda #0
-    plx
-	rts
+    ora #PS2_SPECIAL
+    sta ZP_KEYB_FLAGS
+    jmp pta_return_zero           ; JMP statt BRA wegen Reichweite
 
-@pta_chk_ordinary:						         
-    and #$7f                     ; set highest bit to 0, so e.g. $e0 => $60. puts everything into ascii range
-	tax                          ; swap A to X => to have the index into the lookup tables
-	lda ZP_KEYB_FLAGS            
-	and #PS2_RELEASE             ; check if release code is set
-	bne @pta_release_end          
-	lda ZP_KEYB_FLAGS            
-	and #PS2_ALTGR               ; check if altgr code is set
-	bne @pta_altgr_set             
-	lda ZP_KEYB_FLAGS            
-	and #PS2_SHIFT               ; check if shift code is set
-	bne @pta_shift_set            
-	lda ZP_KEYB_FLAGS            
-	and #PS2_CAPSLOCK            ; check if capsLock code is set
-	bne @pta_caps_set
+@no_special:
+    cmp #$f0                      ; Key Release Code Präfix
+    bne @no_release
+    lda ZP_KEYB_FLAGS
+    ora #PS2_RELEASE
+    sta ZP_KEYB_FLAGS
+    jmp pta_return_zero           ; JMP statt BRA wegen Reichweite
+
+@no_release:
+    cmp #$80                      ; < $80 ok, sonst ungültiger Scancode (Framing Error etc.)
+    bcc @start_table              ; Carry clear heißt less than (<)
+    jmp pta_return_zero           ; Brücke für weiten Sprung
+
+@start_table:
+    ; 2. Jump Table für Sondertasten parsen
+    pla                           ; geretteten scan code wiederholen
+    ldy #0
+@loop:
+    ldx ps2_control_table, y
+    beq @found_match              ; Bei $00 sind wir am Ende -> Fallback auf normale Tasten
+    cmp ps2_control_table, y
+    beq @found_match
+    iny
+    iny
+    iny                           ; 3 Bytes weiter (1 Byte Scancode + 2 Bytes Target Address)
+    bra @loop
+
+@found_match:
+    pha                           ; scan code sichern
+    iny                           ; Zeigt auf Low-Byte der Adresse
+    lda ps2_control_table, y
+    sta ZP_KEYB_JMP_PTR                   
+    iny                           ; Zeigt auf High-Byte
+    lda ps2_control_table, y
+    sta ZP_KEYB_JMP_PTR_HI
+    jmp (ZP_KEYB_JMP_PTR)         ; Indirekter Sprung zum Handler
+
+;================================================================================
+; SPECIAL KEY HANDLERS
+;================================================================================
+
+pta_capslock:
+    lda ZP_KEYB_FLAGS
+    and #PS2_RELEASE              ; Prüfe, ob es ein Loslass-Event ($F0 $58) ist
+    beq @pta_capslock_end         ; Wenn 0 (= gedrückt), ignorieren wir das Event völlig!
+
+    ; --- CAPS LOCK RELEASE ($F0 $58) -> HIER TOGGELN WIR ---
+    lda ZP_KEYB_FLAGS
+    eor #PS2_CAPSLOCK             ; CapsLock Zustand invertieren
+    and #PS2_RELEASE_END          ; Release-Bit direkt wieder löschen (Entspricht PS2_RELEASE_END)
+    sta ZP_KEYB_FLAGS
+
+    ; LED basierend auf neuem Zustand setzen
+    and #PS2_CAPSLOCK
+    beq @pta_capslock_led_off
+    lda #1                        ; LED an
+    bra @pta_capslock_set_led
+@pta_capslock_led_off:
+    lda #0                        ; LED aus
+@pta_capslock_set_led:
+    jsr ps2_set_capslock_led
+@pta_capslock_end:
+    jmp pta_return_zero           ; Gedrückt halten/Wiederholen wird komplett ignoriert
+
+
+pta_shift:
+    lda ZP_KEYB_FLAGS
+    and #PS2_RELEASE
+    bne @pta_shift_rel
+    lda ZP_KEYB_FLAGS
+    ora #PS2_SHIFT
+    bra @pta_shift_save
+@pta_shift_rel:
+    lda ZP_KEYB_FLAGS
+    and #PS2_SHIFT_END            ; Nutzt deine Bitmaske invertiert zum Löschen
+@pta_shift_save:
+    sta ZP_KEYB_FLAGS
+    jmp pta_return_zero
+
+
+pta_ctrl:
+    lda ZP_KEYB_FLAGS
+    and #PS2_RELEASE
+    bne @pta_ctrl_rel
+    lda ZP_KEYB_FLAGS
+    ora #PS2_CTRL
+    bra @pta_ctrl_save
+@pta_ctrl_rel:
+    lda ZP_KEYB_FLAGS
+    and #PS2_CTRL_END
+@pta_ctrl_save:
+    sta ZP_KEYB_FLAGS
+    jmp pta_return_zero
+
+
+pta_alt:
+    lda ZP_KEYB_FLAGS
+    and #PS2_RELEASE
+    bne @pta_alt_rel
+    lda ZP_KEYB_FLAGS
+    and #PS2_SPECIAL
+    bne @pta_alt_altgr
+    ora #PS2_ALT
+    bra @pta_alt_save
+@pta_alt_altgr:
+    ora #PS2_ALTGR
+    bra @pta_alt_save
+@pta_alt_rel:
+    lda ZP_KEYB_FLAGS
+    and #PS2_ALT_END
+@pta_alt_save:
+    sta ZP_KEYB_FLAGS
+    jmp pta_return_zero
+
+;================================================================================
+; ORDINARY KEY PROCESSING & CLEANUP
+;================================================================================
+
+pta_ordinary:
+    pla                          ; geretteten scan code wiederholen
+    and #$7f                     ; In ASCII-Bereich zwingen
+    tax                          ; scan code steht jetzt in .X
+    
+    lda ZP_KEYB_FLAGS
+    and #PS2_RELEASE
+    bne @release_end
+    
+    lda ZP_KEYB_FLAGS
+    and #PS2_ALTGR
+    bne @altgr_set
+    
+    lda ZP_KEYB_FLAGS
+    and #PS2_SHIFT
+    bne @shift_set
+    
+    lda ZP_KEYB_FLAGS
+    and #PS2_CAPSLOCK
+    bne @caps_set
 
     lda ZP_KEYB_FLAGS
     and #PS2_CTRL
-    beq @pta_ordinary_key        ; Wenn CTRL nicht gedrückt -> direkt zum Standard-Code
-    lda ps2_to_ascii_lower, x    ; default use ascii_lower
-    cmp #$61                     ; Prüfe Untergrenze (a = Ctrl-A = ^A)
-    bcc @pta_no_ctrl_char        ; Wenn .A < 1 (also 0), springe weg (Carry-Flag ist gelöscht)
-    cmp #$7a                     ; Prüfe Obergrenze (z = CTRL-Z = ^Z)
-    bcs @pta_no_ctrl_char        ; Wenn A >= $1B (also $1B oder höher), springe weg (Carry gesetzt)
-    and #$1f                     ; Umwandlung in Control-Char ($01-$1A / ^A-^Z)
-@pta_no_ctrl_char:
-	bra @pta_end
-@pta_ordinary_key:
-    lda ps2_to_ascii_lower, x    ; default use ascii_lower
-	bra @pta_end
+    beq @ordinary_key
+    
+    ; check if ascii code is between a and z => means here we have Ctrl-Keys like ^L = Form Feed = Clear Screen
+    lda ps2_to_ascii_lower, x
+    cmp #ASCII_LOW_A                     
+    bcc @no_ctrl_char
+    cmp #ASCII_LOW_Z + 1          ; because bcs (Carry Set Check) means greater or equal (>=)                    
+    bcs @no_ctrl_char
+    and #$1f                      ; and $1f used on $61 (a) = $01, used on $7a (z) = $1a (Dec: 26)
+    bra pta_end
+@no_ctrl_char:
+    pha                           ; es muss was auf den Stack, da in pta_return_zero der wert wieder entfernt wird
+    bra pta_return_zero           ; CTRL is pressed but its not a CTRL-Char (^A-^Z) => return 0
 
-@pta_release_end:
-	lda #0
-	bra @pta_end
+; TODO: bis jetzt werden keine Fkt-Tasten und weitere zurückgegeben. Hier fehlt noch das Konzept.
+;       siehe auch ps2_to_ascii_* tables - die scan codes z.B. $01,$05,$07 (F9,F1,F12) werden alle als ASCII $00 zurückgegeben.
 
-@pta_altgr_set:
-    lda ps2_to_ascii_altgr, X
-	bra @pta_end
+@ordinary_key:
+    lda ps2_to_ascii_lower, x
+    bra pta_end
 
-@pta_shift_set:
-	lda ZP_KEYB_FLAGS     
-	and #PS2_CAPSLOCK            ; check if capsLock code is set
-	bne @pta_shift_caps
-    lda ps2_to_ascii_upper, X
-	bra @pta_end
-@pta_shift_caps:    
-    lda ps2_to_ascii_lower, X
-	bra @pta_end
+@release_end:
+    lda #0
+    bra pta_end
 
-@pta_caps_set:	
-    lda ps2_to_ascii_upper, X
+@altgr_set:
+    lda ps2_to_ascii_altgr, x
+    bra pta_end
+
+@shift_set:
+    lda ZP_KEYB_FLAGS
+    and #PS2_CAPSLOCK
+    bne @shift_caps
+    lda ps2_to_ascii_upper, x
+    bra pta_end
+@shift_caps:
+    lda ps2_to_ascii_lower, x
+    bra pta_end
+
+@caps_set:
+    lda ps2_to_ascii_upper, x
 ;	bra @pta_end
-	
-@pta_end:
+
+pta_end:
     pha
     lda ZP_KEYB_FLAGS
-	and #PS2_SPECIAL_END         ; set special and release off after each ordinary key
-	sta ZP_KEYB_FLAGS
+    and #PS2_SPECIAL_END          ; Setzt das Special-Flag und das Release-Flag am Ende zurück
+    sta ZP_KEYB_FLAGS
     pla
+    ply
     plx
-	rts
+    rts
+
+pta_return_zero:
+    pla                           ; geretteter scan code muss vom Stack geholt werden, da er noch dort liegt
+    lda #0
+    ply
+    plx
+    rts
 
 ;================================================================================
 ;   ps2_set_leds - set all leds on/off
@@ -563,18 +729,31 @@ ps2_to_ascii:
 ;================================================================================
 ps2_set_leds:
     phx
-	phy
-    sta ZP_KEYB_LEDS
-	lda #$ed
-	jsr ps2_write
-;	jsr ps2_wait_for_ack
-    ldx #2
-	ldy #0
-	jsr __kernel_sleep
-	lda ZP_KEYB_LEDS
-	jsr ps2_write
-	ply
-	plx
+
+    sta ZP_KEYB_LEDS        ; Neuen LED-Zustand zwischenspeichern
+
+    ; 1. Befehl $ED (Set LEDs) senden
+    lda #$ed
+    jsr ps2_write
+
+    ; 2. Warten, bis die Tastatur das Befehls-ACK ($FA) geschickt hat
+    ldx #50
+    jsr PS2_get_wait_timeout     ; Nutzen wir aus der Init-Logik!
+    bcs @led_err                  ; Timeout? Dann abbrechen.
+    cmp #$FA
+    bne @led_err                  ; Falsche Antwort? Abbrechen.
+
+    ; 3. Das LED-Datenbyte hinterhersenden
+    lda ZP_KEYB_LEDS
+    jsr ps2_write
+
+    ; 4. Optional: Auch das zweite ACK der Tastatur abwarten und verwerfen,
+    ; damit es später nicht als "Geister-Taste" im KEYB_BUFFER landet!
+    ldx #50
+    jsr PS2_get_wait_timeout
+    
+@led_err:
+    plx
     rts
 
 ;================================================================================
@@ -587,13 +766,13 @@ ps2_set_leds:
 ;================================================================================
 ps2_set_capslock_led:
     cmp #0
-	beq pcl_off
-	lda ZP_KEYB_LEDS
-	ora #PS2_CAPSLOCK_LED_ON
-	bra pcl_do
+    beq pcl_off
+    lda ZP_KEYB_LEDS
+    ora #PS2_CAPSLOCK_LED_ON
+    bra pcl_do
 pcl_off:
-	lda ZP_KEYB_LEDS
-	and #PS2_CAPSLOCK_LED_OFF
+    lda ZP_KEYB_LEDS
+    and #PS2_CAPSLOCK_LED_OFF
 pcl_do:
     jsr ps2_set_leds
     rts
@@ -729,8 +908,6 @@ irq_via_ps2_framingerror:
 
 .segment "RODATA"
 
-ps2_hex_chars: .byte '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
-
 ; Due to hardware design, the bits of the PS/2 scancode are in reverse order (comming in via shift register).
 ; This table reverses them back to normal.
 ; So, scan code $01 (0000 0001) becomes $80 (1000 0000), scan code $1C (0001 1100) 'Ascii A' becomes $38 (0011 1000), etc.
@@ -806,3 +983,18 @@ ps2_to_ascii_altgr:
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $0D, "~", $00, $00, $00, $00 ; 5 - $0D = carriage return
     .byte $00, "|", $00, $00, $00, $00, $08, $00, $00, $03, $00, $14, $02, $00, $00, $00 ; 6 - $08 = backspace, $03 = end, $14 = left, $02 = home
     .byte $1a, $18, $12, $00, $13, $11, $1B, $00, $00, $00, $0f, $00, $00, $0e, $00, $00 ; 7 - $1a = ins, $18 = del, $12 = down, $13 = right, $11 = up, $1B = esc, $0f = PgDown, $0e = PgUp
+
+; Jump table for special keys like shift, ctrl, alt, altGr, Caps_Lock
+ps2_control_table:
+    .byte $58
+    .word pta_capslock       ; Ohne '@' -> globales Label
+    .byte $12
+    .word pta_shift          ; Ohne '@'
+    .byte $59
+    .word pta_shift
+    .byte $14
+    .word pta_ctrl
+    .byte $11
+    .word pta_alt
+    .byte $00               
+    .word pta_ordinary       ; Der sichere Ausgang für normale Tasten

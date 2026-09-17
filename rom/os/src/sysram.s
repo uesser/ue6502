@@ -8,15 +8,21 @@
 .exportzp ZP_LCD_TAB_WIDTH
 .exportzp ZP_LCD_STR_PTR
 .exportzp ZP_LCD_STR_PTR_HI
+
 .exportzp ZP_KEYB_TMP
 .exportzp ZP_KEYB_RD_RESULT
 .exportzp ZP_KEYB_WR_PTR
 .exportzp ZP_KEYB_RD_PTR
 .exportzp ZP_KEYB_LEDS
 .exportzp ZP_KEYB_FLAGS
+.exportzp ZP_KEYB_JMP_PTR
+.exportzp ZP_KEYB_JMP_PTR_HI
+
 .exportzp ZP_ACIA_WR_PTR
 .exportzp ZP_ACIA_RD_PTR
-.exportzp ZP_ACIA_SPTR
+.exportzp ZP_ACIA_STR_PTR
+.exportzp ZP_ACIA_STR_PTR_HI
+
 .exportzp ZP_VIA_TIMER_INT_CNT
 
 .export ACIA_BUFFER_SIZE
@@ -26,6 +32,7 @@
 .export ACIA_BUFFER
 .export KEYB_BUFFER
 .export LCD_BUFFER
+
 .export shell_cmd_id
 .export shell_cmd_tmp
 .export shell_buffer_used
@@ -36,6 +43,7 @@
 
 ;===================================================================
 .segment "ZEROPAGE"
+
 ; LCD
 ZP_LCD_COL:            .res 1           ; current LCD col
 ZP_LCD_ROW:            .res 1           ; current LCD row
@@ -43,6 +51,7 @@ ZP_LCD_BUF_PTR:        .res 2           ; Reserviert 2 Bytes für die 16-Bit-Adr
 ZP_LCD_TAB_WIDTH:      .res 1           ; Tab width in count spaces (Default is 2)
 ZP_LCD_STR_PTR:        .res 1           ; 2 byte pointer points to 0 terminated string to print
 ZP_LCD_STR_PTR_HI:     .res 1
+
 ; Keyboard
 ZP_KEYB_TMP:           .res 1
 ZP_KEYB_RD_RESULT:     .res 1
@@ -50,10 +59,15 @@ ZP_KEYB_WR_PTR:        .res 1
 ZP_KEYB_RD_PTR:        .res 1
 ZP_KEYB_LEDS:          .res 1           ; leds: 1 = scroll lock, 2 = num lock, 4 = caps lock, 8 = 0, 16 = 0, 32 = 0, 64 = 0, 128 = 0
 ZP_KEYB_FLAGS:         .res 1           ; keyboard flags: 1 = release, 2 = capsLock, 4 = shift, 8 = ctrl, 16 = altgr, 32 = alt, 64 = fn, 128 = special ($e0)
+ZP_KEYB_JMP_PTR:       .res 1           ; pointer for jump table ps2_control_table
+ZP_KEYB_JMP_PTR_HI:    .res 1
+
 ; ACIA (RS232)
 ZP_ACIA_WR_PTR:        .res 1
 ZP_ACIA_RD_PTR:        .res 1
-ZP_ACIA_SPTR:          .res 2           ; String pointer - ACIA/TTY I/O
+ZP_ACIA_STR_PTR:       .res 1           ; String pointer - ACIA/TTY I/O
+ZP_ACIA_STR_PTR_HI:    .res 1
+
 ; VIA
 ZP_VIA_TIMER_INT_CNT:  .res 1           ; memory address to store how often the via timer interrupt has been called
 

@@ -19,27 +19,42 @@ reset:
   ; It initializes the system and then jumps to the shell.
 
   ; init stack
-  ldx #$ff
-  txs
+    ldx #$ff
+    txs
   
-;  jsr VIA_init
-  jsr ACIA_init
-  jsr LCD_init
-  jsr KEYB_init
+;    jsr VIA_init
+    jsr ACIA_init
+    jsr LCD_init
+    
+    cli
 
-  cli
+    jsr KEYB_init
+    cmp #KB_STATUS_OK
+    beq @keyboard_ok
+
+    ; Hier Fehlermeldung ausgeben ("KEYBOARD ERROR")
+    lda #<msg_kb_err
+    sta ZP_LCD_STR_PTR
+    sta ZP_ACIA_STR_PTR
+    lda #>msg_kb_err
+    sta ZP_LCD_STR_PTR_HI
+    sta ZP_ACIA_STR_PTR_HI
+    bra @welcome
+
+@keyboard_ok:
+    ; Hier Erfolgsmeldung ausgeben ("KEYBOARD OK")
+    lda #<msg_kb_ok
+    sta ZP_LCD_STR_PTR
+    sta ZP_ACIA_STR_PTR
+    lda #>msg_kb_ok
+    sta ZP_LCD_STR_PTR_HI
+    sta ZP_ACIA_STR_PTR_HI
 
 @welcome:
   ; Print welcome message
   jsr shell_newline_ACIA
-  ldx #0
-@shell_welcome_char:
-  lda shell_welcome, X
-  beq @shell_welcome_done
-  jsr kernel_putc
-  inx
-  jmp @shell_welcome_char
-@shell_welcome_done:
+  jsr kernel_puts
+  jsr shell_newline
 
   ; Configure EhBASIC's RAM I/O vectors and start BASIC at $C836.
   ; lda #<kernel_getc
@@ -59,34 +74,8 @@ reset:
   ; jsr BASIC_ENTRY
   ; cli
 
-  ; print keyboard init result (keyb err, keyb ok)
-  ; lda ZP_KEYB_INIT_RESULT
-  ; cmp #$01           ; keyboard error
-  ; beq @keyb_err
-
-  ; ldx #0
-; @keyb_ok_char:
-  ; lda keyb_ok, X
-  ; beq @keyb_feedback_done
-  ; jsr kernel_putc
-  ; inx
-  ; jmp @keyb_ok_char
-; 
-; @keyb_err:
-  ; ldx #0
-; @keyb_error_char:
-  ; lda keyb_err, X
-  ; beq @keyb_feedback_done
-  ; jsr kernel_putc
-  ; inx
-  ; jmp @keyb_error_char
-; 
-; @keyb_feedback_done:
-  
-  jsr shell_newline
-
 keyboard_check:
-  jsr KEYB_get__wait   ; returns ASCII char in .A
+  jsr KEYB_get_wait   ; returns ASCII char in .A
   cmp #$00             ; check if char received
   beq keyboard_check   ; no char received or invalid scancode or error codes fromn keyboard (e.g. $ff framing error) => loop
 ;  jsr hex_print_byte  
@@ -189,11 +178,10 @@ shell_command_test:
   tax
   jmp (built_in_main, X) ; jump to this main method
 
+msg_kb_ok:  .asciiz "65C02 Rdy (keyb ok)"
+msg_kb_err: .asciiz "65C02 Rdy (keyb err)"
+
 shell_not_found: .asciiz "Command not found"
-shell_welcome: .asciiz "65C02 Ready"
-keyb_ok: .asciiz " (keyb ok)"
-keyb_no_keyb: .asciiz " (no keyb)"
-keyb_err: .asciiz " (keyb err)"
 shell_prompt: .asciiz "# "
 
 shell_newline:
@@ -521,17 +509,24 @@ ACIA_Get_Char_Wait:
 
 ; KERNEL routine getc
 kernel_getc:
-  jsr KEYB_get__wait
+  jsr KEYB_get_wait
 	beq kernel_getc
 	rts
 	
 ; KERNEL routine putc
 kernel_putc:
-        ; Print a single character via LCD and ACIA.
-        jsr LCD_print_char
+    ; Print a single character via LCD and ACIA.
+    jsr LCD_print_char
 kernel_putc_ACIA:
-        jsr ACIA_send_byte
-        rts
+    jsr ACIA_send_byte
+    rts
+
+; KERNEL routine puts
+kernel_puts:
+    jsr LCD_print_str
+kernel_puts_ACIA:
+    jsr ACIA_send_string
+    rts
 
 basic_file_stub:
   rts

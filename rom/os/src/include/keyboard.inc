@@ -2,7 +2,9 @@
 _KEYBOARD_INC_ = 1
 
 .import KEYB_init
-.import KEYB_get__wait
+.import KEYB_get_wait
+.import KEYB_get_wait_timeout
+.import PS2_get_wait_timeout
 .import KEYB_is_shift
 .import KEYB_is_capslock
 .import KEYB_is_ctrl

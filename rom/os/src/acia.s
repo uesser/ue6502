@@ -194,12 +194,12 @@ ACIA_send_string:
     phy
     ldy #$00
 @string_loop:
-    lda (ZP_ACIA_SPTR),y
+    lda (ZP_ACIA_STR_PTR),y
     beq @end_loop
     jsr ACIA_send_byte
     iny
     bne @string_loop
-    inc ZP_ACIA_SPTR+1       ; we are crossing page
+    inc ZP_ACIA_STR_PTR+1       ; we are crossing page
     bra @string_loop
 @end_loop:
     ply
