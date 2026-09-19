@@ -2,13 +2,11 @@
 
 .include "cpu.inc"
 
-.include "constants.inc"
-.include "ascii.h"
 .include "sysram.inc"
-.include "kernelUtils.inc"
 .include "acia.inc"
 .include "via.inc"
 .include "lcd.inc"
+.include "keyboard-driver.inc"
 .include "keyboard.inc"
 .include "kernel.inc"
 
@@ -32,7 +30,7 @@ reset:
     cmp #KB_STATUS_OK
     beq @keyboard_ok
 
-    ; Hier Fehlermeldung ausgeben ("KEYBOARD ERROR")
+    ; Hier Fehlermeldung zusammenstellen ("KEYBOARD ERROR")
     lda #<msg_kb_err
     sta ZP_LCD_STR_PTR
     sta ZP_ACIA_STR_PTR
@@ -42,7 +40,7 @@ reset:
     bra @welcome
 
 @keyboard_ok:
-    ; Hier Erfolgsmeldung ausgeben ("KEYBOARD OK")
+    ; Hier Erfolgsmeldung zusammenstellen ("KEYBOARD OK")
     lda #<msg_kb_ok
     sta ZP_LCD_STR_PTR
     sta ZP_ACIA_STR_PTR
@@ -75,9 +73,7 @@ reset:
   ; cli
 
 keyboard_check:
-  jsr KEYB_get_wait   ; returns ASCII char in .A
-  cmp #$00             ; check if char received
-  beq keyboard_check   ; no char received or invalid scancode or error codes fromn keyboard (e.g. $ff framing error) => loop
+  jsr kernel_getc      ; returns ASCII char in .A
 ;  jsr hex_print_byte  
   jsr kernel_putc      ; echo char - 08 (BS), 0C (^L), 0D (Return) werden im LCD behandelt. ^L = Form Feed = Clear Screen
   jmp keyboard_check
@@ -509,7 +505,8 @@ ACIA_Get_Char_Wait:
 
 ; KERNEL routine getc
 kernel_getc:
-  jsr KEYB_get_wait
+  jsr KEYB_get
+  cmp #0
 	beq kernel_getc
 	rts
 	

@@ -12,10 +12,11 @@ _SYSRAM_INC_ = 1
 .importzp ZP_KEYB_RD_RESULT
 .importzp ZP_KEYB_WR_PTR
 .importzp ZP_KEYB_RD_PTR
-.importzp ZP_KEYB_LEDS
-.importzp ZP_KEYB_FLAGS
 .importzp ZP_KEYB_JMP_PTR
 .importzp ZP_KEYB_JMP_PTR_HI
+.importzp ZP_KEYB_LEDS
+.importzp ZP_KEYB_FLAGS
+.importzp ZP_KEYB_SCROLL
 
 .importzp ZP_ACIA_WR_PTR
 .importzp ZP_ACIA_RD_PTR

@@ -13,10 +13,11 @@
 .exportzp ZP_KEYB_RD_RESULT
 .exportzp ZP_KEYB_WR_PTR
 .exportzp ZP_KEYB_RD_PTR
-.exportzp ZP_KEYB_LEDS
-.exportzp ZP_KEYB_FLAGS
 .exportzp ZP_KEYB_JMP_PTR
 .exportzp ZP_KEYB_JMP_PTR_HI
+.exportzp ZP_KEYB_LEDS
+.exportzp ZP_KEYB_FLAGS
+.exportzp ZP_KEYB_SCROLL
 
 .exportzp ZP_ACIA_WR_PTR
 .exportzp ZP_ACIA_RD_PTR
@@ -57,10 +58,11 @@ ZP_KEYB_TMP:           .res 1
 ZP_KEYB_RD_RESULT:     .res 1
 ZP_KEYB_WR_PTR:        .res 1
 ZP_KEYB_RD_PTR:        .res 1
-ZP_KEYB_LEDS:          .res 1           ; leds: 1 = scroll lock, 2 = num lock, 4 = caps lock, 8 = 0, 16 = 0, 32 = 0, 64 = 0, 128 = 0
-ZP_KEYB_FLAGS:         .res 1           ; keyboard flags: 1 = release, 2 = capsLock, 4 = shift, 8 = ctrl, 16 = altgr, 32 = alt, 64 = fn, 128 = special ($e0)
 ZP_KEYB_JMP_PTR:       .res 1           ; pointer for jump table ps2_control_table
 ZP_KEYB_JMP_PTR_HI:    .res 1
+ZP_KEYB_LEDS:          .res 1           ; leds: 1 = scroll lock, 2 = num lock, 4 = caps lock, 8 = 0, 16 = 0, 32 = 0, 64 = 0, 128 = 0
+ZP_KEYB_FLAGS:         .res 1           ; keyboard flags: 1 = release, 2 = capsLock, 4 = shift, 8 = ctrl, 16 = altgr, 32 = alt, 64 = fn, 128 = special ($e0)
+ZP_KEYB_SCROLL:        .res  1, $00     ; mit 0 initialisieren
 
 ; ACIA (RS232)
 ZP_ACIA_WR_PTR:        .res 1
