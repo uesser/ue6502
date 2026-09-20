@@ -1,6 +1,10 @@
 CA65 = ca65
 LD65 = ld65
 
+# --cpu wird in den AFLAGS nicht gesetzt, da .setcpu "65816" in den sources gesetzt wird (s. cpu.inc).
+AFLAGS = --feature force_range -W 1 --debug-info $(OS_INCLUDES)
+LDFLAGS = -C $(OS_CFG) --dbgfile $(OS_BUILD_DIR)/os.dbg
+
 # Values to fit os and basic into the same EPROM, which size is 32kB (32768 bytes), but only the upper 16kB of EPROM used.
 # The OS is placed at 0x2900 (10496) and the BASIC at 0x0000 (0), overall at an offset of 0x4000 (16384) (upper 16kB).
 EPROMSIZE := 32768
@@ -33,10 +37,6 @@ BASIC_IMAGE := $(BASIC_BUILD_DIR)/basic.bin
 
 ROM_16_TARGET := $(BUILD_DIR)/rom16.bin
 ROM_32_TARGET := $(BUILD_DIR)/rom32.bin
-
-# --cpu wird in den AFLAGS nicht gesetzt, da .setcpu "65816" in den sources gesetzt wird (s. cpu.inc).
-AFLAGS = --debug-info $(OS_INCLUDES)
-LDFLAGS = -C $(OS_CFG) --dbgfile $(OS_BUILD_DIR)/os.dbg
 
 .PHONY: all clean burn
 

@@ -10,6 +10,7 @@
 .export ACIA_get_byte_timeout
 .export ACIA_send_byte
 .export ACIA_send_string
+.export ACIA_send_hex
 
 .export ACIA_ihandler
 
@@ -37,7 +38,7 @@ SLEEP_HIGH = >SLEEP_BLOCKS
     ldx ZP_ACIA_WR_PTR
     sta ACIA_BUFFER, X
     inx
-    cpx #ACIA_BUFFER_SIZE
+    cpx #<ACIA_BUFFER_SIZE
     bne @wr_acia_buf_end
     ldx #0
 @wr_acia_buf_end:
@@ -49,7 +50,7 @@ SLEEP_HIGH = >SLEEP_BLOCKS
     ldx ZP_ACIA_RD_PTR
     lda ACIA_BUFFER, X
     inx
-    cpx #ACIA_BUFFER_SIZE
+    cpx #<ACIA_BUFFER_SIZE
     bne @rd_acia_buf_end
     ldx #0
 @rd_acia_buf_end:
@@ -76,9 +77,6 @@ SLEEP_HIGH = >SLEEP_BLOCKS
 ACIA_init:
     pha	
 	
-    stz ZP_ACIA_WR_PTR             ; initialize ACIA write pointer
-    stz ZP_ACIA_RD_PTR             ; initialize ACIA read pointer
-
     lda #(ACIA_HARDWARE_RESET)
     sta ACIA_STATUS
     lda #(ACIA_PARITY_DISABLE | ACIA_ECHO_DISABLE | ACIA_TX_INT_DISABLE_RTS_LOW | ACIA_RX_INT_ENABLE | ACIA_DTR_LOW)
@@ -152,7 +150,7 @@ ACIA_get_byte_timeout:
     rts
 
 ;================================================================================
-;   ACIA_send_byte - Send one byte to TX buffer
+;   ACIA_send_byte - Sends one byte to TX buffer
 ;   ————————————————————————————————————
 ;   Parameters:      .A byte to send
 ;   Returned Values: none
@@ -162,18 +160,18 @@ ACIA_get_byte_timeout:
 ACIA_send_byte:
 ; Der auskommentierte code wäre der richtige, wenn der W65C51 nicht den Hardware bug hätte (googeln: w65c51 hardware bug)
 ;    sei
-;    pha                        ; save A
+;    pha                           ; save A
     phx
 	phy
 ;@ACIA_wait_txd_empty:
-;    lda ACIA_STATUS            ; Read ACIA status register
+;    lda ACIA_STATUS              ; Read ACIA status register
 ;    and #$10
 ;    beq @ACIA_wait_txd_empty
-;    pla                        ; ELSE, restore ACCUMULATOR from STACK
-    sta ACIA_DATA              ; Send the byte.
+;    pla                          ; ELSE, restore ACCUMULATOR from STACK
+    sta ACIA_DATA                 ; Send the byte.
 
-    ldy #SLEEP_HIGH            ; Höherwertiges Byte (für 115200: 0)
-    ldx #SLEEP_LOW             ; Niederwertiges Byte (für 115200: 1 -> 100µs)
+    ldy #SLEEP_HIGH               ; Höherwertiges Byte (für 115200: 0)
+    ldx #SLEEP_LOW                ; Niederwertiges Byte (für 115200: 1 -> 100µs)
 	jsr __kernel_sleep
 ;    cli
     ply
@@ -181,7 +179,7 @@ ACIA_send_byte:
     rts                       
 
 ;================================================================================
-;   ACIA_send_string - Send null-terminated string
+;   ACIA_send_string - Sends null-terminated string
 ;   ————————————————————————————————————
 ;   Parameters:      ZP_ACIA_SPTR, ZP_ACIA_SPTR+1 string pointer
 ;   Returned Values: none
@@ -194,15 +192,50 @@ ACIA_send_string:
     phy
     ldy #$00
 @string_loop:
-    lda (ZP_ACIA_SPTR),y
+    lda (ZP_ACIA_STR_PTR),y
     beq @end_loop
     jsr ACIA_send_byte
     iny
     bne @string_loop
-    inc ZP_ACIA_SPTR+1       ; we are crossing page
+    inc ZP_ACIA_STR_PTR+1       ; we are crossing page
     bra @string_loop
 @end_loop:
     ply
+    plx
+    pla
+    rts
+
+;================================================================================
+;   ACIA_send_hex - Sends byte as hexadecimal presentation
+;   ————————————————————————————————————
+;   Parameters:      .A byte to send as hex
+;   Returned Values: none
+;   Destroys:        none
+;   ————————————————————————————————————
+;================================================================================
+ACIA_send_hex:
+    pha
+    phx
+    
+    pha
+    lda #$24                      ; $24 = dollar sign '$''
+    jsr ACIA_send_byte
+    pla
+    pha
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+    lda hexmap, x
+    jsr ACIA_send_byte
+    pla
+
+    and #$0F
+    tax
+    lda hexmap, x
+    jsr ACIA_send_byte
+    
     plx
     pla
     rts
@@ -241,3 +274,9 @@ ACIA_ihandler:               ; IRQ handler for ACIA RX. Must be called by overal
     plx                       ; restore x
     pla                       ; restore Akku
     rti
+
+
+.segment "RODATA"
+
+hexmap: 
+    .byte "0123456789ABCDEF"

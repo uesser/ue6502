@@ -2,9 +2,9 @@
 
 .include "cpu.inc"
 
-.include "constants.inc"
+.import SYSRAM_init
+
 .include "sysram.inc"
-.include "kernelUtils.inc"
 .include "acia.inc"
 .include "via.inc"
 .include "lcd.inc"
@@ -14,100 +14,142 @@
 .segment "CODE"
 
 reset:
-  ; Computer bootstrap code. This is the first code that runs after reset.
-  ; It initializes the system and then jumps to the shell.
+    ; Computer bootstrap code. This is the first code that runs after reset.
+    ; It initializes the system and then jumps to the shell.
 
-  ; init stack
-  ldx #$ff
-  txs
-  
-;  jsr VIA_init
-  jsr ACIA_init
-  jsr LCD_init
-  jsr KEYB_init
+    ; init stack
+    ldx #$ff
+    txs
 
-  cli
+    jsr SYSRAM_init
+
+;    jsr VIA_init
+    jsr ACIA_init
+    jsr LCD_init
+    
+    cli
+
+    jsr KEYB_init
+    cmp #KB_STATUS_OK
+    beq @keyboard_ok
+
+    ; Hier Fehlermeldung zusammenstellen ("KEYBOARD ERROR")
+    lda #<msg_kb_err
+    sta ZP_LCD_STR_PTR
+    sta ZP_ACIA_STR_PTR
+    lda #>msg_kb_err
+    sta ZP_LCD_STR_PTR_HI
+    sta ZP_ACIA_STR_PTR_HI
+    bra @welcome
+
+@keyboard_ok:
+    ; Hier Erfolgsmeldung zusammenstellen ("KEYBOARD OK")
+    lda #<msg_kb_ok
+    sta ZP_LCD_STR_PTR
+    sta ZP_ACIA_STR_PTR
+    lda #>msg_kb_ok
+    sta ZP_LCD_STR_PTR_HI
+    sta ZP_ACIA_STR_PTR_HI
 
 @welcome:
-  ; Print welcome message
-  jsr shell_newline_ACIA
-  ldx #0
-@shell_welcome_char:
-  lda shell_welcome, X
-  beq @shell_welcome_done
-  jsr kernel_putc
-  inx
-  jmp @shell_welcome_char
-@shell_welcome_done:
+    ; Print welcome message
+    jsr shell_newline_ACIA
+    jsr kernel_puts
+    jsr shell_newline
 
-  ; Configure EhBASIC's RAM I/O vectors and start BASIC at $C836.
-  ; lda #<kernel_getc
-  ; sta $0205
-  ; lda #>kernel_getc
-  ; sta $0206
-  ; lda #<kernel_putc
-  ; sta $0207
-  ; lda #>kernel_putc
-  ; sta $0208
-  ; lda #<basic_file_stub
-  ; sta $0209
-  ; sta $020b
-  ; lda #>basic_file_stub
-  ; sta $020a
-  ; sta $020c
-  ; jsr BASIC_ENTRY
-  ; cli
+    ; --------------------------------------------------------------
+    ; ACHTUNG: Basic und Kernel überschneiden sich in ZP und Low-RAM
+    ; --------------------------------------------------------------
+    ; Configure EhBASIC's RAM I/O vectors and start BASIC at $C836.
+    ; lda #<kernel_getc
+    ; sta $0205
+    ; lda #>kernel_getc
+    ; sta $0206
+    ; lda #<kernel_putc
+    ; sta $0207
+    ; lda #>kernel_putc
+    ; sta $0208
+    ; lda #<basic_file_stub
+    ; sta $0209
+    ; sta $020b
+    ; lda #>basic_file_stub
+    ; sta $020a
+    ; sta $020c
+    ; jsr BASIC_ENTRY
+    ; cli
 
-  ; print keyboard init result (keyb err, keyb ok)
-  ; lda ZP_KEYB_INIT_RESULT
-  ; cmp #$01           ; keyboard error
-  ; beq @keyb_err
-
-  ; ldx #0
-; @keyb_ok_char:
-  ; lda keyb_ok, X
-  ; beq @keyb_feedback_done
-  ; jsr kernel_putc
-  ; inx
-  ; jmp @keyb_ok_char
-; 
-; @keyb_err:
-  ; ldx #0
-; @keyb_error_char:
-  ; lda keyb_err, X
-  ; beq @keyb_feedback_done
-  ; jsr kernel_putc
-  ; inx
-  ; jmp @keyb_error_char
-; 
-; @keyb_feedback_done:
-  
-  jsr shell_newline
+    ; Initialize TAB WIDTH
+    lda #2
+    sta ZP_KERNEL_TAB_WIDTH       ; initialize tab width with 2 spaces
+    stz ZP_KERNEL_LAST_KEY        ; Last key ASCII $32 (2) setzen. Wenn als allererste Taste CTRL-TAB kommt, dann wird TAB-WIDTH auf 2 gesetzt
 
 keyboard_check:
-  jsr KEYB_get__wait   ; returns ASCII char in .A
-  cmp #$00             ; check if char received
-  beq keyboard_check   ; no char received or invalid scancode or error codes fromn keyboard (e.g. $ff framing error) => loop
-  cmp 'c'
-  bne keyboard_CR
-  jsr KEYB_is_ctrl
-  beq keyboard_CR
-  jsr LCD_clear
-  jmp keyboard_check
-keyboard_CR:
-  cmp #$0d             ; Carriage Return
-  bne keyboard_backsp
-  jsr LCD_newline
-  jmp keyboard_check
-keyboard_backsp:
-  cmp #$08             ; backspace
-  bne keyboard_echo
-  jsr LCD_backspace
-  jmp keyboard_check
-keyboard_echo:
-;  jsr hex_print_byte  
-  jsr kernel_putc      ; echo char
-  jmp keyboard_check
+    jsr kernel_getc               ; returns ASCII char in .A
+    ; jsr hex_print_byte
+
+tab_handler:
+    cmp #ASCII_HT
+    bne @keyboard_process         ; kein TAB? Dann weiter zu @keyboard_process
+
+    jsr KEYB_is_ctrl              ; muss als Ctrl-I kommen, da mit Ctrl nur A-Z bearbeitet werden in keyboard.s/keyb_to_ascii
+    beq @tab_no_ctrl
+
+    jsr kernel_set_tab_width
+    jmp keyboard_check
+
+@tab_no_ctrl:
+    lda ZP_KERNEL_TAB_WIDTH
+    cmp #1
+    beq @keyboard_process
+
+    jsr KEYB_is_shift
+    bne @tab_shift
+
+    lda #ASCII_SPC
+    bra @tab_do_tab_width
+
+@tab_shift:
+    lda #ASCII_BS
+@tab_do_tab_width:
+    ldx ZP_KERNEL_TAB_WIDTH
+@tab_loop:
+    jsr kernel_putc
+    dex
+    bne @tab_loop
+    sta ZP_KERNEL_LAST_KEY
+
+    jmp keyboard_check
+
+@keyboard_process:
+    jsr kernel_putc               ; echo char - 08 (BS), 0C (^L), 0D (Return) werden im LCD behandelt. ^L = Form Feed = Clear Screen
+    sta ZP_KERNEL_LAST_KEY
+
+    jmp keyboard_check
+
+;================================================================================
+;   kernel_set_tab_width - Sets count spaces how tabs are handled
+;                          Must between 1 and 8
+;                          1: pure TAB ($09)
+;                          else: count spaces are returned
+;   ————————————————————————————————————
+;   Parameters:      ZP_KERNEL_LAST_KEY
+;   Returned Values: none
+;   Destroys:        none
+;   ————————————————————————————————————
+;================================================================================
+kernel_set_tab_width:
+    pha
+    lda ZP_KERNEL_LAST_KEY
+    cmp #$31                      ; ASCII $31 = $01
+    bcc @kstw_exit                ; bcc means less than (<): at least 1 space should be printed
+    cmp #$39                      ; ASCII $39 = $09: (checks >= 9) not greater than 8 spaces
+    bcs @kstw_exit                ; bcs means greater or equal (>=)
+    and #$0f                      ; translate from ASCII to number (e.g. $37 => $07)
+    sta ZP_KERNEL_TAB_WIDTH
+@kstw_exit:
+    pla
+    rts
+
 
 shell_next_command:
   ; Clear buffer
@@ -129,7 +171,7 @@ shell_next_char:
   jsr kernel_getc         ; get from keyboard
   
   sta shell_cmd_tmp   ; possible future use
-  cmp #$0d            ; return key pressed?
+  cmp #ASCII_CR       ; return key pressed?
   beq @run_command    ; run the command
   ; TODO check for ASCII printable, backspace etc
   ; regular ascii char - save to buffer
@@ -205,18 +247,18 @@ shell_command_test:
   tax
   jmp (built_in_main, X) ; jump to this main method
 
+msg_kb_ok:  .asciiz "65C02 Rdy (keyb ok)"
+msg_kb_err: .asciiz "65C02 Rdy (keyb err)"
+
 shell_not_found: .asciiz "Command not found"
-shell_welcome: .asciiz "65C02 Ready"
-keyb_ok: .asciiz " (keyb ok)"
-keyb_no_keyb: .asciiz " (no keyb)"
-keyb_err: .asciiz " (keyb err)"
 shell_prompt: .asciiz "# "
 
 shell_newline:
-  jsr LCD_newline
+  lda #ASCII_CR
+  jsr LCD_print_char
 
 shell_newline_ACIA:
-  lda #$0d
+  lda #ASCII_CR
   jsr ACIA_send_byte
   lda #$0a
   jsr ACIA_send_byte
@@ -391,7 +433,7 @@ shell_rx_print_chars:
   cmp #$03              ; Ctrl+C?
   beq @done
   jsr hex_print_byte    ; print as hex (2 digits)
-  lda #$20              ; space between chars
+  lda #ASCII_SPC        ; space between chars
   jsr kernel_putc
   plx
   dex
@@ -427,10 +469,10 @@ shell_rx_print_user_program: ; Print the first 255 bytes of uploaded user progra
   phx
   jsr hex_print_byte_ACIA    ; Print the char (clobbers X)
   plx
-  lda #$20              ; space between chars
+  lda #ASCII_SPC             ; space between chars
   jsr kernel_putc_ACIA
   iny
-  cpy #0                ; Wrap-around at 255 bytes
+  cpy #0                     ; Wrap-around at 255 bytes
   beq @user_program_done
   dex
   cpx #0
@@ -504,25 +546,12 @@ shell_irqtest_main:
 ;  jmp (isr_jump_table, X)   ; jump to matching service routine
 
 hex_print_byte:               ; print accumulator as two ascii digits (hex)
-  jsr LCD_print_hex
-  rts
+    jsr LCD_print_hex
+    rts
 
-hex_print_byte_ACIA:               ; print accumulator as two ascii digits (hex)
-  pha                         ; store byte for later
-  lsr                         ; shift out lower nibble
-  lsr
-  lsr
-  lsr
-  tax
-  lda hex_chars, X            ; convert 0-15 to ascii char for hex digit
-  jsr kernel_putc_ACIA         ; print upper nibble
-  pla                         ; retrieve byte again
-  and #$0f                    ; mask out upper nibble
-  tax
-  lda hex_chars, X            ; convert 0-15 to ascii char for hex digit
-  jsr kernel_putc_ACIA         ; print lower nibble
-  rts
-hex_chars: .byte '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+hex_print_byte_ACIA:          ; sends accumulator as two ascii digits (hex) to ACIA
+    jsr ACIA_send_hex
+    rts
 
 ; KERNEL routine ACIA_getc
 kernel_ACIA_getc:
@@ -536,17 +565,25 @@ ACIA_Get_Char_Wait:
 
 ; KERNEL routine getc
 kernel_getc:
-  jsr KEYB_get__wait
+  jsr KEYB_get
+  cmp #0
 	beq kernel_getc
 	rts
 	
 ; KERNEL routine putc
 kernel_putc:
-        ; Print a single character via LCD and ACIA.
-        jsr LCD_print_char
+    ; Print a single character via LCD and ACIA.
+    jsr LCD_print_char
 kernel_putc_ACIA:
-        jsr ACIA_send_byte
-        rts
+    jsr ACIA_send_byte
+    rts
+
+; KERNEL routine puts
+kernel_puts:
+    jsr LCD_print_str
+kernel_puts_ACIA:
+    jsr ACIA_send_string
+    rts
 
 basic_file_stub:
   rts
