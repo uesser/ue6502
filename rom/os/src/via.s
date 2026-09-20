@@ -1,9 +1,45 @@
 .include "cpu.inc"
 
+.include "linker_symbols.h"
+
 .include "constants.inc"
 .include "sysram.inc"
 .include "kernelUtils.inc"
 .include "via.h"
+
+VIA_PORTB   = __IO_START__ + $00    ; I/O Port B
+VIA_PORTA   = __IO_START__ + $01    ; I/O Port A
+VIA_DDRB    = __IO_START__ + $02    ; Data Direction Register B
+VIA_DDRA    = __IO_START__ + $03    ; Data Direction Register A
+VIA_T1C_L   = __IO_START__ + $04    ; T1/CB1 shift rate
+VIA_T1C_H   = __IO_START__ + $05    ; T1/CB1 shift rate
+VIA_T1L_L   = __IO_START__ + $06    ; T1 lower latch
+VIA_T1L_H   = __IO_START__ + $07    ; T1 upper latch
+VIA_T2C_L   = __IO_START__ + $08    ; T2/CB2 shift rate
+VIA_T2C_H   = __IO_START__ + $09    ; T2/CB2 shift rate
+VIA_SR      = __IO_START__ + $0a    ; Shift Register
+VIA_ACR     = __IO_START__ + $0b    ; Auxiliary Control Register
+VIA_PCR     = __IO_START__ + $0c    ; Peripheral Control Register
+VIA_IFR     = __IO_START__ + $0d    ; Interrupt Flag Register
+VIA_IER     = __IO_START__ + $0e    ; Interrupt Enable Register
+VIA_PORTA_2 = __IO_START__ + $0f    ; Port A - no handshake
+
+.export VIA_PORTB
+.export VIA_PORTA
+.export VIA_DDRB
+.export VIA_DDRA
+.export VIA_T1C_L
+.export VIA_T1C_H
+.export VIA_T1L_L
+.export VIA_T1L_H
+.export VIA_T2C_L
+.export VIA_T2C_H
+.export VIA_SR
+.export VIA_ACR
+.export VIA_PCR
+.export VIA_IFR
+.export VIA_IER
+.export VIA_PORTA_2
 
 .export VIA_init
 
@@ -48,13 +84,13 @@ loop:
     sta VIA_PORTB
 	ldy #>10000
 	ldx #<10000
-    jsr __kernel_sleep
+    jsr _kernel_sleep
 
     lda #$55
     sta VIA_PORTB
 	ldy #>10000
 	ldx #<10000
-    jsr __kernel_sleep
+    jsr _kernel_sleep
 	
 	plx
 

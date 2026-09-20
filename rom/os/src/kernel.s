@@ -2,8 +2,6 @@
 
 .include "cpu.inc"
 
-.import SYSRAM_init
-
 .include "sysram.inc"
 .include "acia.inc"
 .include "via.inc"
@@ -100,8 +98,11 @@ tab_handler:
 @tab_no_ctrl:
     lda ZP_KERNEL_TAB_WIDTH
     cmp #1
-    beq @keyboard_process
+    bne @tab_as_spc_bs
+    lda #ASCII_HT
+    bra @keyboard_process
 
+@tab_as_spc_bs:
     jsr KEYB_is_shift
     bne @tab_shift
 

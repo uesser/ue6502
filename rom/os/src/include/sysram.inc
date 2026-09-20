@@ -1,6 +1,8 @@
 .ifndef _SYSRAM_INC_
 _SYSRAM_INC_ = 1
 
+.import SYSRAM_init
+
 .importzp ZP_LCD_COL
 .importzp ZP_LCD_ROW
 .importzp ZP_LCD_JMP_PTR
@@ -16,7 +18,10 @@ _SYSRAM_INC_ = 1
 .importzp ZP_KEYB_JMP_PTR_HI
 .importzp ZP_KEYB_LEDS
 .importzp ZP_KEYB_FLAGS
-.importzp ZP_KEYB_SCROLL
+.importzp ZP_KEYB_IS_RELEASE
+.importzp ZP_KEYB_IS_SPECIAL
+.importzp ZP_KEYB_IS_CAPSLOCK
+.importzp ZP_KEYB_IS_SCROLL 
 
 .importzp ZP_ACIA_WR_PTR
 .importzp ZP_ACIA_RD_PTR

@@ -1,9 +1,21 @@
 .include "cpu.inc"
 
+.include "linker_symbols.h"
+
 .include "constants.inc"
 .include "sysram.inc"
 .include "kernelUtils.inc"
 .include "acia.h"
+
+ACIA_DATA    = __IO_START__ + $400
+ACIA_STATUS  = __IO_START__ + $401
+ACIA_COMMAND = __IO_START__ + $402
+ACIA_CONTROL = __IO_START__ + $403
+
+.export ACIA_DATA
+.export ACIA_STATUS
+.export ACIA_COMMAND
+.export ACIA_CONTROL
 
 .export ACIA_init
 .export ACIA_get_byte
@@ -172,7 +184,7 @@ ACIA_send_byte:
 
     ldy #SLEEP_HIGH               ; Höherwertiges Byte (für 115200: 0)
     ldx #SLEEP_LOW                ; Niederwertiges Byte (für 115200: 1 -> 100µs)
-	jsr __kernel_sleep
+	jsr _kernel_sleep
 ;    cli
     ply
 	plx

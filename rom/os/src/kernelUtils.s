@@ -2,7 +2,7 @@
 
 .include "constants.inc"
 
-.export __kernel_sleep
+.export _kernel_sleep
 
 ; Die Schleife im Makro SLEEP_FOR_100us braucht für die ersten LOOP_COUNT-1 Durchläufe je 5 Zyklen.
 ; Für den letzen Durchlauf nur 4 Zyklen (Sprungbefehl hat unterschiedliche Zyklen, je nach Verzweigung oder Weiterlaufen)
@@ -52,7 +52,7 @@ LOOP_COUNT = (REMAINDER_CYCLES - 8 + 4) / 5
 .segment "CODE"
 
 ;================================================================================
-;   __kernel_sleep - sleeps a while
+;   _kernel_sleep - sleeps a while
 ;   Sleeps for about 100us, param times (e.g. y = 0, x = 5 => sleeps about 500us).
 ;   Maximum sleep is about 6,5s (y = 255, x = 255).
 ;   Macro SLEEP_100us is adjusted to CPU_FREQUENCY so the whole loop lasts about 100us
@@ -64,7 +64,7 @@ LOOP_COUNT = (REMAINDER_CYCLES - 8 + 4) / 5
 ;   Destroys:        .X, .Y
 ;   ————————————————————————————————————
 ;================================================================================
-__kernel_sleep:
+_kernel_sleep:
     cpx #0                        ; (2 cycles)
 	bne @kernel_sleep             ; (3 cycles if X != 0, 2 cycles if X == 0)
 	cpy #0                        ; (2 cycles)

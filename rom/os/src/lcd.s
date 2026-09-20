@@ -95,7 +95,7 @@ lcd_setup:
     ; delay 50000 us ; > 40ms for Vcc to rise above 2.7V
     ldy #>500
     ldx #<500
-    jsr __kernel_sleep
+    jsr _kernel_sleep
     
     lda #%00000011 ; Set 4-bit mode
     sta LCD_PORT
@@ -107,7 +107,7 @@ lcd_setup:
     ; delay 4500 us
     ldy #0
     ldx #45
-    jsr __kernel_sleep
+    jsr _kernel_sleep
     
     lda #%00000011 ; Set 4-bit mode
     sta LCD_PORT
@@ -119,7 +119,7 @@ lcd_setup:
     ; delay 150 us
     ldy #0
     ldx #2
-    jsr __kernel_sleep
+    jsr _kernel_sleep
 
     lda #%00000011 ; Set 4-bit mode
     sta LCD_PORT

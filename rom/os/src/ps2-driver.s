@@ -249,10 +249,10 @@ PS2_DRV_pop_scancode_timeout:
     dex                          ; Zähler für diese Millisekunde verringern
 
     phx                          ; Zählerstand auf dem Stack sichern
-    ; --- 1 Millisekunde warten via __kernel_sleep ---
-    ldx #10                      ; 10 * 100µs = 1000µs = 1ms
+    
+    ldx #10                      ; 10 * 100µs = 1000µs = 1ms sleep
     ldy #0
-    jsr __kernel_sleep
+    jsr _kernel_sleep
     plx                          ; Zählerstand in .X wiederherstellen
 
     bra @pgwt_check_buffer       ; Und wieder von vorn prüfen
@@ -364,7 +364,7 @@ ps2_drv_write:
 	; Wait a while
     ldy #0
     ldx #1              ; sleep 100us
-    jsr __kernel_sleep
+    jsr _kernel_sleep
 
     ; Let the clock float again (PB6 auf Eingang)
     stz KEYB_DDR        ; PB6 wieder auf Eingang -> Clock geht HIGH
@@ -456,7 +456,7 @@ ps2_drv_set_leds:
     ; Dem Tastatur-Controller Zeit geben seine eben erst beendete scancode Sendung abzuschließen
     ldy #0
     ldx #50                       ; 50 ms warten, bis die Leitungen absolut frei sind
-    jsr __kernel_sleep
+    jsr _kernel_sleep
 
     ; Befehl $ED (Set LEDs) senden
     lda #PS2_SET_LEDS             ; $ED
@@ -596,7 +596,7 @@ irq_via_ps2_framingerror:
 	; Wait a while
     ldy #0
     ldx #1                    ; sleep 100us
-    jsr __kernel_sleep
+    jsr _kernel_sleep
 
 	and #%10111111
     sta KEYB_DDR              ; release clock

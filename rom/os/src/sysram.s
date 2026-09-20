@@ -1,7 +1,6 @@
 .include "cpu.inc"
 
-.import __RAMLOW_START__
-.import __RAMLOW_SIZE__
+.include "linker_symbols.h"
 
 .export SYSRAM_init                 ; segment .code: initialisiert Zeropage und Sysram mit $00
 
@@ -20,7 +19,10 @@
 .exportzp ZP_KEYB_JMP_PTR_HI
 .exportzp ZP_KEYB_LEDS
 .exportzp ZP_KEYB_FLAGS
-.exportzp ZP_KEYB_SCROLL
+.exportzp ZP_KEYB_IS_RELEASE
+.exportzp ZP_KEYB_IS_SPECIAL
+.exportzp ZP_KEYB_IS_CAPSLOCK
+.exportzp ZP_KEYB_IS_SCROLL 
 
 .exportzp ZP_ACIA_WR_PTR
 .exportzp ZP_ACIA_RD_PTR
@@ -72,7 +74,10 @@ ZP_KEYB_JMP_PTR:       .res 1           ; pointer for jump table ps2_control_tab
 ZP_KEYB_JMP_PTR_HI:    .res 1
 ZP_KEYB_LEDS:          .res 1           ; leds: 1 = scroll lock, 2 = num lock, 4 = caps lock, 8 = 0, 16 = 0, 32 = 0, 64 = 0, 128 = 0
 ZP_KEYB_FLAGS:         .res 1           ; keyboard flags: 1 = release, 2 = capsLock, 4 = shift, 8 = ctrl, 16 = altgr, 32 = alt, 64 = fn, 128 = special ($e0)
-ZP_KEYB_SCROLL:        .res 1           ; indicator if SCROLL key was pressed (1) or released (0)
+ZP_KEYB_IS_RELEASE:    .res 1           ; indicator if a key was released (1) or pressed (0)
+ZP_KEYB_IS_SPECIAL:    .res 1           ; indicator if scancode $e0 was send with this scancode sequence (e.g. $e0 $11 = AltGr)
+ZP_KEYB_IS_CAPSLOCK:   .res 1           ; indicator if CAPSLOCK key was pressed (1) or released (0)
+ZP_KEYB_IS_SCROLL:     .res 1           ; indicator if SCROLL key was pressed (1) or released (0)
 
 ; ACIA (RS232)
 ZP_ACIA_WR_PTR:        .res 1
@@ -89,7 +94,7 @@ ZP_KERNEL_TAB_WIDTH:   .res 1
 
 ;===================================================================
 
-.segment "SYSRAM"
+.segment "BSS"
 
 ACIA_BUFFER:           .res $80         ; max size 128 ($80) byte
 ACIA_BUFFER_SIZE = * - ACIA_BUFFER
