@@ -4,7 +4,6 @@
 
 .include "cpu.inc"
 
-.include "constants.inc"
 .include "ascii.h"
 .include "sysram.inc"
 .include "kernelUtils.inc"
@@ -12,10 +11,9 @@
 .include "lcd.h"
 
 .export LCD_init
-.export LCD_print_hex
-.export LCD_print_str
 .export LCD_print_char
-.export LCD_set_tab_width
+.export LCD_print_str
+.export LCD_print_hex
 
 ; IO
 LCD_DDR  = VIA_DDRA
@@ -26,49 +24,24 @@ E  = %01000000
 RW = %00100000
 RS = %00010000
 
-; Display size 20x4
-LCDMAXCOL    = 80
-LCDMAXSCROLL = 60
-
 ;--------------------------------------------------------------------------------
 ;   Code
 ;--------------------------------------------------------------------------------
 
 .segment "CODE"
 
-.macro WR_BUFFER   ; Screibt .A in LCD_BUFFER an die richtige (aktuelle) Stelle - zerstört: NONE
+.macro WRITE_LCD_BUFFER           ; Screibt .A in LCD_BUFFER an die richtige (aktuelle) Stelle - zerstört: NONE
     phx
-    phy
-    pha
-
-    ; CALC_BUFFER_PTR
+    
+    pha                           ; Zeichen retten
     ldx ZP_LCD_ROW                ; Zeilen-Index (0-3) in X laden
-    
-    ; 1. Basis-Offset für die Zeile holen und LCD_BUFFER addieren
-    lda lcd_row_offsets_low, x
+    lda lcd_row_offsets, x        ; je nach Zeilenindex steht jetzt 0, 20, 40 oder 60 in .A
     clc
-    adc #<LCD_BUFFER              ; Low-Byte der Puffer-Startadresse addieren
-    sta ZP_LCD_BUF_PTR            ; Im Low-Byte des Zeigers speichern
-    
-    lda lcd_row_offsets_high, x
-    adc #>LCD_BUFFER              ; High-Byte der Puffer-Startadresse addieren (inkl. Carry)
-    sta ZP_LCD_BUF_PTR+1          ; Im High-Byte des Zeigers speichern
+    adc ZP_LCD_COL                ; in .A steht jetzt die Position an der das Zeichen geschrieben werden muss
+    tax                           ; in .X steht jetzt die Position an der das Zeichen geschrieben werden muss
+    pla                           ; Zeichen wiederholen
+    sta LCD_BUFFER, x
 
-    ; 2. Spalten-Offset (cursor_x) addieren
-    lda ZP_LCD_BUF_PTR
-    clc
-    adc ZP_LCD_COL
-    sta ZP_LCD_BUF_PTR
-    lda ZP_LCD_BUF_PTR+1
-    adc #0                        ; Falls es einen Übertrag gab, High-Byte erhöhen
-    sta ZP_LCD_BUF_PTR+1
-    ; End CALC_BUFFER_PTR
-    
-    pla                           ; .A zurückholen, da er in CALC_BUFFER_PTR zerstört wurde
-    ldy #0                        ; Y auf 0 setzen
-    sta (ZP_LCD_BUF_PTR), y       ; Schreibt das Zeichen in .A an die berechnete RAM-Adresse
-
-    ply
     plx
 .endmacro
 
@@ -88,23 +61,20 @@ LCD_init:
     lda #%11111111 ; Set all pins on port to output
     sta LCD_DDR
 
-    jsr lcd_setup   ; Note: along with delay, this bludgeons A, X and Y (cold and warm reset of LCD)
+    jsr lcd_setup                 ; Note: along with delay, this bludgeons A, X and Y (cold and warm reset of LCD)
     
-    lda #%00101000 ; Set 4-bit mode; 2-line display; 5x8 font
+    lda #%00101000                ; Set 4-bit mode; 2-line display; 5x8 font
     jsr lcd_instruction
-    lda #%00001110 ; Display on; cursor on; blink off
+    lda #%00001110                ; Display on; cursor on; blink off
     jsr lcd_instruction
-    lda #%00000110 ; Increment and shift cursor; don't shift display
+    lda #%00000110                ; Increment and shift cursor; don't shift display
     jsr lcd_instruction
-    lda #%00000001 ; Clear screen
+    lda #%00000001                ; Clear screen
     jsr lcd_instruction
     
-    jsr lcd_init_custom_chars   ; initialize custom characters in CGRAM
+    jsr lcd_init_custom_chars     ; initialize custom characters in CGRAM
 
-    lda #2
-    sta ZP_LCD_TAB_WIDTH        ; initialize tab width with 2 (spaces to print)
-
-    jsr lcd_clear
+    jsr lcd_clear                 ; clears not only the lcd (like above), but also LCD_BUFFER and initilaizes the cursor variables
 
     ply
     plx
@@ -357,16 +327,16 @@ lcd_clear:
     phx
 
     ; 1. Hardware-LCD löschen
-    lda #$01            ; HD44780-Befehl: "Clear Display"
+    lda #$01                      ; HD44780-Befehl: "Clear Display"
     jsr lcd_instruction    
     
     ; 2. Software-RAM-Puffer mit Leerzeichen ($20) füllen
-    lda #ASCII_SPC             ; Leerzeichen (Blank)
+    lda #ASCII_SPC                ; Leerzeichen (Blank)
     ldx #0
 @clear_buffer_loop:
     sta LCD_BUFFER, x
     inx
-    cpx #LCDMAXCOL             ; Alle 80 Bytes gelöscht?
+    cpx #LCDMAXCOL                ; Alle 80 Bytes gelöscht?
     bne @clear_buffer_loop
 
     ; 3. Cursor-Variablen im RAM zurücksetzen
@@ -399,7 +369,7 @@ lcd_backspace:
     dec ZP_LCD_ROW                ; Eine Zeile nach oben springen
     lda #LCDCOLS-1
     sta ZP_LCD_COL                ; Ganz nach rechts springen (Spalte 20, Index 19)
-    jmp @delete_char              ; Zeichen an dieser neuen Position löschen
+    bra @delete_char              ; Zeichen an dieser neuen Position löschen
 
 @normal_backspace:
     ; --- Fall: Normales Löschen innerhalb der Zeile ---
@@ -408,14 +378,13 @@ lcd_backspace:
 @delete_char:
     ; 1. RAM-Puffer-Adresse berechnen und mit Leerzeichen überschreiben
     lda #ASCII_SPC                ; Leerzeichen (Blank)
-    WR_BUFFER
+    WRITE_LCD_BUFFER
     ; 2. Hardware-Display aktualisieren
     jsr lcd_setcursor             ; LCD-Cursor auf die neue Position (cursor_x/y) setzen
 ;    lda #ASCII_SPC   ; .A sollte nicht verändert worden sein durch WR_BUFFER und lcd_setcursor
     jsr lcd_writedata             ; Zeichen auf dem LCD mit Blank überschreiben
     
-    ; 3. Cursor wieder zurücksetzen
-    ; Da 'lcd_data' den LCD-Hardware-Cursor automatisch eins nach rechts 
+    ; 3. Cursor wieder zurücksetzen, da 'lcd_data' den LCD-Hardware-Cursor automatisch eins nach rechts 
     ; geschoben hat, müssen wir ihn erneut auf unsere Wunschposition zwingen.
     jsr lcd_setcursor
 
@@ -458,16 +427,9 @@ lcd_newline:
 ;================================================================================
 lcd_tab:
     pha
-    phx
-
     lda #ASCII_SPC                ; Leerzeichen (blank)
-    ldx ZP_LCD_TAB_WIDTH          ; count blanks to put as a TAB
-@tab_loop:
     jsr lcd_putchar
-    dex
-    bne @tab_loop
-    
-    plx
+    jsr lcd_putchar
     pla
     rts
 
@@ -587,32 +549,32 @@ lcd_scroll:
 ;   ————————————————————————————————————
 ;================================================================================
 lcd_putchar:
+    WRITE_LCD_BUFFER
+    jsr lcd_writedata             ; Auf echtes LCD ausgeben
+
     pha
-    
-    ; Prüfen, ob wir am Zeilenende (Spalte 20) angekommen sind
+
+    ; Prüfen, ob wir am Zeilenende (Spalte 19) angekommen sind
     lda ZP_LCD_COL
-    cmp #LCDCOLS
-    bne @write_to_buf
-    
-    ; Zeilenüberlauf handhaben
+    cmp #LCDCOLS-1
+    beq @lp_row_overflow
+    inc ZP_LCD_COL                ; Cursor auf dem Papier eins weiter
+    pla
+    rts
+
+@lp_row_overflow:
     stz ZP_LCD_COL
     inc ZP_LCD_ROW
     lda ZP_LCD_ROW
     cmp #LCDROWS                  ; Letzte Zeile überschritten?
-    bne @no_scroll
+    beq @lp_scroll
+    jsr lcd_setcursor             ; Cursor auch auf dem LCD selbst setzen
+    pla
+    rts
+
+@lp_scroll:
     jsr lcd_scroll                ; Scrollen auslösen
-
-@no_scroll:
-    jsr lcd_setcursor
-
-@write_to_buf:
-    ; Zeichen in screen_buffer schreiben via ptr
-    pla                           ; .A   zurückholen, da im oberen Teil zerstört
-    WR_BUFFER
-
-    jsr lcd_writedata             ; Auf echtes LCD ausgeben
-    inc ZP_LCD_COL                ; Cursor auf dem Papier eins weiter
-
+    pla
     rts
 
 ;--------------------------------------------------------------------------------
@@ -628,31 +590,33 @@ lcd_putchar:
 ;   ————————————————————————————————————
 ;================================================================================
 LCD_print_char:
-    cmp #ASCII_BS                 ; Backspace
-    beq @is_bs
-    cmp #ASCII_HT                 ; Horizontal Tab
-    beq @is_tab
-    cmp #ASCII_FF                 ; Form Feed / Clear Screen ($0C / ^L)
-    beq @is_clear
-    cmp #ASCII_CR                 ; Enter - new line (Carriage Return / $0D)
-    beq @is_cr
+    phx
+    phy
 
-    ; --- Normales druckbares Zeichen ---
-    jsr lcd_putchar
-    rts
+    ; Jump Table für Sonderzeichen parsen
+    ldy #0
+@loop:
+    ldx lcd_jump_table, y
+    beq @found_match              ; Bei $00 sind wir am Ende -> Fallback auf normale Zeichen
+    cmp lcd_jump_table, y
+    beq @found_match
+    iny
+    iny
+    iny                           ; 3 Bytes weiter (1 Byte Scancode + 2 Bytes Target Address)
+    bra @loop
 
-@is_bs:
-    jsr lcd_backspace
-    rts
-@is_tab:
-    jsr lcd_tab
-    rts
-@is_clear:
-    jsr lcd_clear
-    rts
-@is_cr:
-    jsr lcd_newline
-    rts
+@found_match:
+    pha                           ; Zeichen sichern
+    iny                           ; Zeigt auf Low-Byte der Adresse
+    lda lcd_jump_table, y
+    sta ZP_LCD_JMP_PTR                   
+    iny                           ; Zeigt auf High-Byte der Adresse
+    lda lcd_jump_table, y
+    sta ZP_LCD_JMP_PTR_HI
+    pla                           ; Zeichen wiederherstellen
+    ply
+    plx
+    jmp (ZP_LCD_JMP_PTR)          ; Indirekter Sprung zum Handler
 
 ;================================================================================
 ;   LCD_print_str - prints a string on LCD
@@ -690,40 +654,26 @@ LCD_print_hex:
     phx
     
     pha
+    lda #$24                      ; $24 = dollar sign '$''
+    jsr lcd_putchar               ; LCD_print_hex puts ordinary chars only, sono need to call LCD_print_char
+    pla
+    pha
     lsr
     lsr
     lsr
     lsr
     tax
     lda hexmap, x
-    jsr LCD_print_char
+    jsr lcd_putchar
     pla
 
     and #$0F
     tax
     lda hexmap, x
-    jsr LCD_print_char
+    jsr lcd_putchar
     
     plx
     pla
-    rts
-
-;================================================================================
-;   LCD_set_tab_width - Sets count spaces how tabs are printed (default is 2)
-;                       Must between 1 and 8
-;   ————————————————————————————————————
-;   Parameters:      .A byte count spaces
-;   Returned Values: none
-;   Destroys:        none
-;   ————————————————————————————————————
-;================================================================================
-LCD_set_tab_width:
-    cmp #0
-    beq @exit                     ; at least 1 space should be printed
-    cmp #9                        ; (checks >= 9) not greater than 8 spaces
-    bcs @exit
-    sta ZP_LCD_TAB_WIDTH
-@exit:
     rts
 
 ;--------------------------------------------------------------------------------
@@ -732,22 +682,30 @@ LCD_set_tab_width:
 
 .segment "RODATA"
 
-; Look-Up-Tabellen für (Zeile * 20)
-; Zeile 0 = 0, Zeile 1 = 20, Zeile 2 = 40, Zeile 3 = 60
-lcd_row_offsets_low:
-    .byte <0, <20, <40, <60
-
-lcd_row_offsets_high:
-    .byte >0, >20, >40, >60
-
-hexmap: 
-    .byte "0123456789ABCDEF"
-
 lcdrowstart:
     .byte $00       ; 20x4 and 16x2 displays
     .byte $40       ; 20x4 and 16x2 displays
     .byte $14       ; 20x4          display
     .byte $54       ; 20x4          display
+
+lcd_row_offsets:
+    .byte 0, 20, 40, 60
+
+; Jump table for special keys like shift, ctrl, alt, altGr, Caps_Lock
+lcd_jump_table:
+    .byte ASCII_BS
+    .word lcd_backspace
+    .byte ASCII_HT
+    .word lcd_tab
+    .byte ASCII_FF
+    .word lcd_clear
+    .byte ASCII_CR
+    .word lcd_newline
+    .byte $00               
+    .word lcd_putchar             ; Der sichere Ausgang für normale Zeichen
+
+hexmap: 
+    .byte "0123456789ABCDEF"
 
 custom_char_data:
     ; Platz $01: Backslash \

@@ -6,9 +6,10 @@
 
 .include "ascii.h"
 .include "sysram.inc"
-.include "keyboard-driver.inc"
+.include "ps2-driver.inc"
 .include "keyboard.h"
 
+.export KEYB_init
 .export KEYB_get
 .export KEYB_peek
 .export KEYB_is_shift
@@ -18,7 +19,29 @@
 .export KEYB_is_altgr
 .export KEYB_is_fn
 
+.export KEYB_ihandler
+
 .segment "CODE"
+
+;================================================================================
+;   KEYB_init - initializes the keyboard
+;   ————————————————————————————————————
+;   Parameters:      none
+;   Returned Values: .A is Status of init (KB_STATUS_OK or KB_STATUS_ERR)
+;   Destroys:        .A
+;   ————————————————————————————————————
+;================================================================================
+KEYB_init:
+    jsr PS2_DRV_init
+
+    cmp #PS2_DRV_STATUS_ERR
+    beq @init_err
+    lda #KB_STATUS_OK
+    bra @init_exit
+@init_err:
+    lda #KB_STATUS_ERR
+@init_exit:
+    rts
 
 ;================================================================================
 ;   KEYB_get - Get ASCII from keyboard buffer, waits for next keystroke/scancode
@@ -31,7 +54,7 @@
 ;================================================================================
 KEYB_get:
 @keyb_get_wait:	
-    jsr KEYB_pop_scancode
+    jsr PS2_DRV_pop_scancode
     bcc @keyb_get_gotchar         ; Carry Clear means got scancode from keyboard buffer
 
 	; The buffer is empty, wait for an interrupt
@@ -54,7 +77,7 @@ KEYB_get:
 ;   ————————————————————————————————————
 ;================================================================================
 KEYB_peek:
-    jsr KEYB_pop_scancode
+    jsr PS2_DRV_pop_scancode
     bcs @keyb_peek_exit                ; Carry Set means no scancode available in keyboard buffer
     jsr keyb_to_ascii
 @keyb_peek_exit:
@@ -70,7 +93,7 @@ KEYB_peek:
 ;================================================================================
 KEYB_is_shift:
     lda ZP_KEYB_FLAGS
-	and #PS2_SHIFT
+	and #KB_SHIFT
     rts
 
 ;================================================================================
@@ -83,7 +106,7 @@ KEYB_is_shift:
 ;================================================================================
 KEYB_is_capslock:
     lda ZP_KEYB_FLAGS
-	and #PS2_CAPSLOCK
+	and #KB_CAPSLOCK
     rts
 
 ;================================================================================
@@ -96,7 +119,7 @@ KEYB_is_capslock:
 ;================================================================================
 KEYB_is_ctrl:
     lda ZP_KEYB_FLAGS
-	and #PS2_CTRL
+	and #KB_CTRL
     rts
 
 ;================================================================================
@@ -109,7 +132,7 @@ KEYB_is_ctrl:
 ;================================================================================
 KEYB_is_alt:
     lda ZP_KEYB_FLAGS
-	and #PS2_ALT
+	and #KB_ALT
     rts
 
 ;================================================================================
@@ -122,7 +145,7 @@ KEYB_is_alt:
 ;================================================================================
 KEYB_is_altgr:
     lda ZP_KEYB_FLAGS
-	and #PS2_ALTGR
+	and #KB_ALTGR
     rts
 
 ;================================================================================
@@ -135,7 +158,7 @@ KEYB_is_altgr:
 ;================================================================================
 KEYB_is_fn:
     lda ZP_KEYB_FLAGS
-	and #PS2_FN
+	and #KB_FN
     rts
 
 ;================================================================================
@@ -159,17 +182,18 @@ keyb_to_ascii:
     ; cmp #$1c                     ; key code $1c = 'A' in ascii
     ; bne @pta_chk_special
     ; tax                          ; swap A to X => to have the index into the lookup tables
-    ; lda ps2_to_ascii_upper, X    ; default use ascii_lower
+    ; lda ps2_to_ascii_upper, x
     ; pla
     ; ply
     ; plx
     ; rts
 
     ; 1. Vorab-Prüfung auf Protokoll-Scancodes ($E0, $F0, Fehler)
+@pta_chk_special:
     cmp #$e0                      ; Special keys wie AltGr Präfix
     bne @no_special
     lda ZP_KEYB_FLAGS
-    ora #PS2_SPECIAL
+    ora #KB_SPECIAL
     sta ZP_KEYB_FLAGS
     jmp pta_return_zero           ; JMP statt BRA wegen Reichweite
 
@@ -177,7 +201,7 @@ keyb_to_ascii:
     cmp #$f0                      ; Key Release Code Präfix
     bne @no_release
     lda ZP_KEYB_FLAGS
-    ora #PS2_RELEASE
+    ora #KB_RELEASE
     sta ZP_KEYB_FLAGS
     jmp pta_return_zero           ; JMP statt BRA wegen Reichweite
 
@@ -205,7 +229,7 @@ keyb_to_ascii:
     iny                           ; Zeigt auf Low-Byte der Adresse
     lda ps2_control_table, y
     sta ZP_KEYB_JMP_PTR                   
-    iny                           ; Zeigt auf High-Byte
+    iny                           ; Zeigt auf High-Byte der Adresse
     lda ps2_control_table, y
     sta ZP_KEYB_JMP_PTR_HI
     jmp (ZP_KEYB_JMP_PTR)         ; Indirekter Sprung zum Handler
@@ -216,12 +240,12 @@ keyb_to_ascii:
 
 pta_scroll:
     lda ZP_KEYB_FLAGS
-    and #PS2_RELEASE              ; Prüfe, ob es ein Loslass-Event ist (z.B. $F0 $7e)
+    and #KB_RELEASE               ; Prüfe, ob es ein Loslass-Event ist (z.B. $F0 $7e)
     beq @pta_scroll_end           ; Wenn 0 (= gedrückt), ignorieren wir das Event völlig!
 
     ; --- SCROLL RELEASE ($F0 $7e) -> HIER TOGGELN WIR ---
     lda ZP_KEYB_FLAGS
-    and #PS2_RELEASE_END          ; Release-Bit direkt wieder löschen (Entspricht PS2_RELEASE_END)
+    and #KB_RELEASE_END           ; Release-Bit direkt wieder löschen (Entspricht KB_RELEASE_END)
     sta ZP_KEYB_FLAGS
     lda ZP_KEYB_SCROLL
     eor #1                        ; Scroll Zustand invertieren
@@ -234,45 +258,45 @@ pta_scroll:
 @pta_scroll_led_off:
     lda #0                        ; LED aus
 @pta_scroll_set_led:
-    jsr KEYB_set_scrollock_led
+    jsr PS2_DRV_set_scrollock_led
 @pta_scroll_end:
     jmp pta_return_zero           ; Gedrückt halten/Wiederholen wird komplett ignoriert
 
 
 pta_capslock:
     lda ZP_KEYB_FLAGS
-    and #PS2_RELEASE              ; Prüfe, ob es ein Loslass-Event ist (z.B. $F0 $58)
+    and #KB_RELEASE               ; Prüfe, ob es ein Loslass-Event ist (z.B. $F0 $58)
     beq @pta_capslock_end         ; Wenn 0 (= gedrückt), ignorieren wir das Event völlig!
 
     ; --- CAPS LOCK RELEASE ($F0 $58) -> HIER TOGGELN WIR ---
     lda ZP_KEYB_FLAGS
-    eor #PS2_CAPSLOCK             ; CapsLock Zustand invertieren
-    and #PS2_RELEASE_END          ; Release-Bit direkt wieder löschen (Entspricht PS2_RELEASE_END)
+    eor #KB_CAPSLOCK              ; CapsLock Zustand invertieren
+    and #KB_RELEASE_END           ; Release-Bit direkt wieder löschen (Entspricht KB_RELEASE_END)
     sta ZP_KEYB_FLAGS
 
     ; LED basierend auf neuem Zustand setzen
-    and #PS2_CAPSLOCK
+    and #KB_CAPSLOCK
     beq @pta_capslock_led_off
     lda #1                        ; LED an
     bra @pta_capslock_set_led
 @pta_capslock_led_off:
     lda #0                        ; LED aus
 @pta_capslock_set_led:
-    jsr KEYB_set_capslock_led
+    jsr PS2_DRV_set_capslock_led
 @pta_capslock_end:
     jmp pta_return_zero           ; Gedrückt halten/Wiederholen wird komplett ignoriert
 
 
 pta_shift:
     lda ZP_KEYB_FLAGS
-    and #PS2_RELEASE
+    and #KB_RELEASE
     bne @pta_shift_rel
     lda ZP_KEYB_FLAGS
-    ora #PS2_SHIFT
+    ora #KB_SHIFT
     bra @pta_shift_save
 @pta_shift_rel:
     lda ZP_KEYB_FLAGS
-    and #PS2_SHIFT_END            ; Nutzt deine Bitmaske invertiert zum Löschen
+    and #KB_SHIFT_END             ; Nutzt deine Bitmaske invertiert zum Löschen
 @pta_shift_save:
     sta ZP_KEYB_FLAGS
     jmp pta_return_zero
@@ -280,14 +304,14 @@ pta_shift:
 
 pta_ctrl:
     lda ZP_KEYB_FLAGS
-    and #PS2_RELEASE
+    and #KB_RELEASE
     bne @pta_ctrl_rel
     lda ZP_KEYB_FLAGS
-    ora #PS2_CTRL
+    ora #KB_CTRL
     bra @pta_ctrl_save
 @pta_ctrl_rel:
     lda ZP_KEYB_FLAGS
-    and #PS2_CTRL_END
+    and #KB_CTRL_END
 @pta_ctrl_save:
     sta ZP_KEYB_FLAGS
     jmp pta_return_zero
@@ -295,28 +319,28 @@ pta_ctrl:
 
 pta_alt:
     lda ZP_KEYB_FLAGS
-    and #PS2_SPECIAL
+    and #KB_SPECIAL
     bne @pta_alt_altgr
     lda ZP_KEYB_FLAGS
-    and #PS2_RELEASE
+    and #KB_RELEASE
     bne @pta_alt_rel
     lda ZP_KEYB_FLAGS
-    ora #PS2_ALT
+    ora #KB_ALT
     bra @pta_alt_save
 @pta_alt_rel:
     lda ZP_KEYB_FLAGS
-    and #PS2_ALT_END
+    and #KB_ALT_END
     bra @pta_alt_save
 @pta_alt_altgr:
     lda ZP_KEYB_FLAGS
-    and #PS2_RELEASE
+    and #KB_RELEASE
     bne @pta_altgr_rel
     lda ZP_KEYB_FLAGS
-    ora #PS2_ALTGR
+    ora #KB_ALTGR
     bra @pta_alt_save
 @pta_altgr_rel:
     lda ZP_KEYB_FLAGS
-    and #PS2_ALTGR_END
+    and #KB_ALTGR_END
 @pta_alt_save:
     sta ZP_KEYB_FLAGS
     jmp pta_return_zero
@@ -326,31 +350,31 @@ pta_alt:
 ;================================================================================
 
 pta_ordinary:
-    pla                          ; geretteten scan code wiederholen
-    and #$7f                     ; In ASCII-Bereich zwingen
-    tax                          ; scan code steht jetzt in .X
+    pla                           ; geretteten scan code wiederholen
+    and #$7f                      ; In ASCII-Bereich zwingen
+    tax                           ; scan code steht jetzt in .X
     
     lda ZP_KEYB_FLAGS
-    and #PS2_RELEASE
+    and #KB_RELEASE
     bne @release_end
     
     lda ZP_KEYB_FLAGS
-    and #PS2_ALTGR
+    and #KB_ALTGR
     bne @altgr_set
     
     lda ZP_KEYB_FLAGS
-    and #PS2_SHIFT
+    and #KB_SHIFT
     bne @shift_set
     
     lda ZP_KEYB_FLAGS
-    and #PS2_CAPSLOCK
+    and #KB_CAPSLOCK
     bne @caps_set
 
     lda ZP_KEYB_FLAGS
-    and #PS2_CTRL
+    and #KB_CTRL
     beq @ordinary_key
     
-    ; check if ascii code is between a and z => means here we have Ctrl-Keys like ^L = Form Feed = Clear Screen
+    ; CTRL-KEY: check if ascii code is between a and z => means here we have Ctrl-Keys like ^L = Form Feed = Clear Screen
     lda ps2_to_ascii_lower, x
     cmp #ASCII_LOW_A                     
     bcc @no_ctrl_char
@@ -364,6 +388,7 @@ pta_ordinary:
 
 ; TODO: bis jetzt werden keine Fkt-Tasten und weitere zurückgegeben. Hier fehlt noch das Konzept.
 ;       siehe auch ps2_to_ascii_* tables - die scan codes z.B. $01,$05,$07 (F9,F1,F12) werden alle als ASCII $00 zurückgegeben.
+; TODO: wenn CTRL gedrückt ist, werden nur die Keys A-Z behandelt. Ein CTRL-TAB z.B. wird als $00 zurückgegeben.
 
 @ordinary_key:
     lda ps2_to_ascii_lower, x
@@ -379,7 +404,7 @@ pta_ordinary:
 
 @shift_set:
     lda ZP_KEYB_FLAGS
-    and #PS2_CAPSLOCK
+    and #KB_CAPSLOCK
     bne @shift_caps
     lda ps2_to_ascii_upper, x
     bra pta_end
@@ -394,7 +419,7 @@ pta_ordinary:
 pta_end:
     pha
     lda ZP_KEYB_FLAGS
-    and #PS2_SPECIAL_END          ; Setzt das Special-Flag und das Release-Flag am Ende zurück
+    and #KB_SPECIAL_END           ; Setzt das Special-Flag und das Release-Flag am Ende zurück
     sta ZP_KEYB_FLAGS
     pla
     ply
@@ -407,6 +432,17 @@ pta_return_zero:
     ply
     plx
     rts
+
+;================================================================================
+;   KEYB_ihandler - Keyboard IRQ Handler
+;   ————————————————————————————————————
+;   Parameters:      none
+;   Returned Values: none
+;   Destroys:        none
+;   ————————————————————————————————————
+;================================================================================
+KEYB_ihandler:
+    jmp PS2_DRV_ihandler
 
 
 .segment "RODATA"

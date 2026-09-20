@@ -1,6 +1,7 @@
 .ifndef _KEYBOARD_INC_
 _KEYBOARD_INC_ = 1
 
+.import KEYB_init
 .import KEYB_get
 .import KEYB_peek
 .import KEYB_is_shift
@@ -9,6 +10,8 @@ _KEYBOARD_INC_ = 1
 .import KEYB_is_alt
 .import KEYB_is_altgr
 .import KEYB_is_fn
+
+.import KEYB_ihandler
 
 .include "keyboard.h"
 

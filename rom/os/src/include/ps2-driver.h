@@ -1,5 +1,5 @@
-.ifndef _KEYBOARD_DRIVER_H_
-_KEYBOARD_DRIVER_H_ = 1
+.ifndef _PS2_DRIVER_H_
+_PS2_DRIVER_H_ = 1
 
 ; Values to send to keyboard
 PS2_RESET            = $ff
@@ -16,7 +16,7 @@ PS2_ACK         = $fa
 PS2_BAT         = $aa
 PS2_SET_LEDS    = $ed
 
-KB_STATUS_OK    = $00
-KB_STATUS_ERR   = $01
+PS2_DRV_STATUS_OK    = $00
+PS2_DRV_STATUS_ERR   = $01
 
 .endif

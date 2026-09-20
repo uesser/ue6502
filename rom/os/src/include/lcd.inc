@@ -2,10 +2,9 @@
 _LCD_INC_ = 1
 
 .import LCD_init
-.import LCD_print_hex
-.import LCD_print_str
 .import LCD_print_char
-.import LCD_set_tab_width
+.import LCD_print_str
+.import LCD_print_hex
 
 .include "lcd.h"
 

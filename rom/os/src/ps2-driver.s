@@ -8,16 +8,16 @@
 .include "kernelUtils.inc"
 .include "via.inc"
 .include "lcd.inc"
-.include "keyboard-driver.h"
+.include "ps2-driver.h"
 
-.export KEYB_init
-.export KEYB_pop_scancode
-.export KEYB_pop_scancode_timeout
-.export KEYB_set_capslock_led
-.export KEYB_set_numlock_led
-.export KEYB_set_scrollock_led
+.export PS2_DRV_init
+.export PS2_DRV_pop_scancode
+.export PS2_DRV_pop_scancode_timeout
+.export PS2_DRV_set_capslock_led
+.export PS2_DRV_set_numlock_led
+.export PS2_DRV_set_scrollock_led
 
-.export KEYB_ihandler
+.export PS2_DRV_ihandler
 
 KEYB_DDR   = VIA_DDRB
 KEYB_PORT  = VIA_PORTB
@@ -29,7 +29,7 @@ KEYB_IFR   = VIA_IFR
 KEYB_T2C_L = VIA_T2C_L
 KEYB_T2C_H = VIA_T2C_H
 
-.macro KEYB_PREPARE_READ_CHARACTER
+.macro PS2_DRV_PREPARE_READ_CHARACTER
     pha
 	; Start SR
     ; Enable T2 counting pulses on PB6, and set SR in read mode, external clock (011)
@@ -46,7 +46,7 @@ KEYB_T2C_H = VIA_T2C_H
     pla
 .endmacro
 
-.macro KEYB_PREPARE_WRITE_CHARACTER
+.macro PS2_DRV_PREPARE_WRITE_CHARACTER
     pha
     ; 1. Schieberegister und Timer im ACR komplett abschalten
     ; Das zwingt PB6 und CB2 zu ganz normalen, passiven Digital-Pins
@@ -57,7 +57,7 @@ KEYB_T2C_H = VIA_T2C_H
     pla
 .endmacro
 
-.macro KEYB_ADD_TO_BUFFER
+.macro PS2_DRV_ADD_TO_BUFFER
     .local katb_add
     .local katb_wr_ptr
     .local katb_end
@@ -97,17 +97,15 @@ wait:
 .segment "CODE"
 
 ;================================================================================
-;   KEYB_init - initializes the PS2 keyboard
+;   PS2_DRV_init - initializes the PS2 keyboard driver
 ;   ————————————————————————————————————
 ;   Parameters:      none
-;   Returned Values: none
+;   Returned Values: .A is Status of init (KB_STATUS_OK or KB_STATUS_ERR)
 ;   Destroys:        .A
 ;   ————————————————————————————————————
 ;================================================================================
-KEYB_init:
-    ; initialize Keyboard Flags und LEDs with $00
-    stz ZP_KEYB_FLAGS
-    stz ZP_KEYB_LEDS
+PS2_DRV_init:
+    phx
 
 	; init CB1 and CB2
 	lda KEYB_PCR
@@ -126,15 +124,15 @@ KEYB_init:
 
     ; Some USB-compatible keyboards dont act as PS/2 keyboards unless we send a reset command to them first
     lda #PS2_RESET
-    jsr keyb_write
+    jsr ps2_drv_write
 
 	; Initialise keyboard buffer pointer WRite ($01) and ReaD ($00). do it here to skip keyb-data (e.g. ACK) at power on.
+    ; ReaD is initialized with $00 in function SYSRAM_init.
     lda #1
     sta ZP_KEYB_WR_PTR
-    stz ZP_KEYB_RD_PTR
 
     ; Prepare for the first character
-    KEYB_PREPARE_READ_CHARACTER
+    PS2_DRV_PREPARE_READ_CHARACTER
 
     ; Disable interrupts except for T2 and SR
     lda #$7f
@@ -147,19 +145,19 @@ KEYB_init:
 
     ; 1. Auf das ACK-Byte (0xFA) warten
     ldx #50                       ; 50 Millisekunden Timeout für das ACK
-    jsr KEYB_pop_scancode_timeout
+    jsr PS2_DRV_pop_scancode_timeout
     bcs @init_failed              ; Timeout -> Fehler
     cmp #PS2_ACK
     bne @init_failed              ; Falsches Byte -> Fehler
 
     ; 2. Auf das BAT-Byte (0xAA) warten
     ldx #250                      ; Erste 250 ms für den Selbsttest warten
-    jsr KEYB_pop_scancode_timeout
+    jsr PS2_DRV_pop_scancode_timeout
     bcc @check_bat                ; Byte ist da? Dann direkt prüfen!
 
     ; Falls die Tastatur etwas träger ist: Weitere 250 ms dranhängen (Gesamt 500 ms)
     ldx #250                      
-    jsr KEYB_pop_scancode_timeout
+    jsr PS2_DRV_pop_scancode_timeout
     bcs @init_failed              ; Nach fast einer halben Sekunde immer noch nichts? -> Fehler
 
 @check_bat:
@@ -167,15 +165,17 @@ KEYB_init:
     bne @init_failed              ; Falsches Byte -> Fehler
 
     ; Erfolgreich!
-    lda #KB_STATUS_OK
-    rts
+    lda #PS2_DRV_STATUS_OK
+    bra @init_exit
 
 @init_failed:
-    lda #KB_STATUS_ERR
+    lda #PS2_DRV_STATUS_ERR
+@init_exit:
+    plx
     rts
 
 ; =============================================================================
-; KEYB_pop_scancode - gets a scan/keyb code from buffer, if exists.
+; PS2_DRV_pop_scancode - gets a scan/keyb code from buffer, if exists.
 ;
 ;   ————————————————————————————————————
 ;   Parameters:      none
@@ -184,7 +184,7 @@ KEYB_init:
 ;   Destroys:        .A, .F
 ;   ————————————————————————————————————
 ; =============================================================================
-KEYB_pop_scancode:
+PS2_DRV_pop_scancode:
     phy
 
     sei                         ; Interrupts sperren für Zeigerkonsistenz
@@ -226,7 +226,7 @@ KEYB_pop_scancode:
     rts
 
 ;================================================================================
-;   KEYB_pop_scancode_timeout  - Holt einen Scancode aus dem Puffer mit
+;   PS2_DRV_pop_scancode_timeout  - Holt einen Scancode aus dem Puffer mit
 ;                                flexiblem Timeout
 ;   ————————————————————————————————————
 ;   Parameters:      .X = Timeout in Millisekunden (1 bis 255)
@@ -236,11 +236,11 @@ KEYB_pop_scancode:
 ;   Destroys:        .A, .X
 ;   ————————————————————————————————————
 ;================================================================================
-KEYB_pop_scancode_timeout:
+PS2_DRV_pop_scancode_timeout:
     phy
     
 @pgwt_check_buffer:
-    jsr KEYB_pop_scancode        ; Schau in den RAM-Puffer
+    jsr PS2_DRV_pop_scancode    ; Schau in den RAM-Puffer
     bcc @pgwt_found              ; Byte da? -> Carry Clear, fertig!
 
     ; Puffer leer
@@ -269,14 +269,14 @@ KEYB_pop_scancode_timeout:
     rts
 
 ;================================================================================
-;   KEYB_set_capslock_led - set capslock led on/off
+;   PS2_DRV_set_capslock_led - set capslock led on/off
 ;   ————————————————————————————————————
 ;   Parameters:      .A is 1 => led on, 0 => led off
 ;   Returned Values: none
 ;   Destroys:        .A
 ;   ————————————————————————————————————
 ;================================================================================
-KEYB_set_capslock_led:
+PS2_DRV_set_capslock_led:
     cmp #0
     beq @cl_off
     lda ZP_KEYB_LEDS
@@ -286,18 +286,18 @@ KEYB_set_capslock_led:
     lda ZP_KEYB_LEDS
     and #PS2_CAPSLOCK_LED_OFF
 @cl_do:
-    jsr keyb_set_leds
+    jsr ps2_drv_set_leds
     rts
 
 ;================================================================================
-;   KEYB_set_numlock_led - set numlock led on/off
+;   PS2_DRV_set_numlock_led - set numlock led on/off
 ;   ————————————————————————————————————
 ;   Parameters:      .A is 1 => led on, 0 => led off
 ;   Returned Values: none
 ;   Destroys:        .A
 ;   ————————————————————————————————————
 ;================================================================================
-KEYB_set_numlock_led:
+PS2_DRV_set_numlock_led:
     cmp #0
     beq @nl_off
     lda ZP_KEYB_LEDS
@@ -307,45 +307,45 @@ KEYB_set_numlock_led:
     lda ZP_KEYB_LEDS
     and #PS2_NUMLOCK_LED_OFF
 @nl_do:
-    jsr keyb_set_leds
+    jsr ps2_drv_set_leds
     rts
 
 ;================================================================================
-;   KEYB_set_scrollock_led - set scrollock led on/off
+;   PS2_DRV_set_scrollock_led - set scrollock led on/off
 ;   ————————————————————————————————————
 ;   Parameters:      .A is 1 => led on, 0 => led off
 ;   Returned Values: none
 ;   Destroys:        .A
 ;   ————————————————————————————————————
 ;================================================================================
-KEYB_set_scrollock_led:
+PS2_DRV_set_scrollock_led:
     cmp #0
-    beq @nl_off
+    beq @sl_off
     lda ZP_KEYB_LEDS
     ora #PS2_SCROLLOCK_LED_ON
-    bra @nl_do
-@nl_off:
+    bra @sl_do
+@sl_off:
     lda ZP_KEYB_LEDS
     and #PS2_SCROLLOCK_LED_OFF
-@nl_do:
-    jsr keyb_set_leds
+@sl_do:
+    jsr ps2_drv_set_leds
     rts
 
 ;================================================================================
-;   keyb_write - Write a byte to the PS/2 port - unbuffered
+;   ps2_drv_write - Write a byte to the PS/2 port - unbuffered
 ;   ————————————————————————————————————
 ;   Parameters:      .A is the byte to be sent to keyboard
 ;   Returned Values: none
 ;   Destroys:        .A
 ;   ————————————————————————————————————
 ;================================================================================
-keyb_write:
+ps2_drv_write:
     phx
     phy
 
     sei                           ; CPU-Interrupts sperren
 
-    KEYB_PREPARE_WRITE_CHARACTER  ; Zustand wie vor dem write in KEYB_init wiederherstellen
+    PS2_DRV_PREPARE_WRITE_CHARACTER  ; Zustand wie vor dem write in KEYB_init wiederherstellen
 
     ; Write a byte to the PS/2 port - bitbanging it for now, but it should be possible to use the shift register
 
@@ -381,28 +381,28 @@ keyb_write:
     ; Send next bit
     ; rol init: ✔, $ed: $fe // ror init: ✔, $ed: $fe // lsr init: $ff, $ed: $fe // asl init: $ff, $ed: $fe
     ror                 ; right rotate sollte richtig sein, da das PS/2-Protokoll LSB first erwtartet
-    jsr keyb_write_bit
+    jsr ps2_drv_write_bit
     dex
     bne @ps2_write_bitloop
 
     ; Send the parity bii
     tya
     ror
-    jsr keyb_write_bit
+    jsr ps2_drv_write_bit
 
     ; Send the stop bit
     sec                     ; set carry = 1
-    jsr keyb_write_bit
+    jsr ps2_drv_write_bit
 
     ; Wait one more time for the final device clock
-    jsr keyb_write_bit
+    jsr ps2_drv_write_bit
 
     ; Alle während unseres Bit-Bangings entstandenen IFR-Flags löschen
     lda #$24                
     sta KEYB_IFR            
 
     ; Reaktiviert ACR $2C und lädt Timer 2 frisch mit 10
-    KEYB_PREPARE_READ_CHARACTER
+    PS2_DRV_PREPARE_READ_CHARACTER
 
     cli                     ; CPU-Interrupts wieder freigeben
     ply
@@ -410,14 +410,14 @@ keyb_write:
     rts
     
 ;================================================================================
-;   keyb_write_bit - Write a bit to the PS/2 shift register
+;   ps2_drv_write_bit - Write a bit to the PS/2 shift register
 ;   ————————————————————————————————————
 ;   Parameters:      The bit to write is in the carry flag
 ;   Returned Values: none
 ;   Destroys:        none
 ;   ————————————————————————————————————
 ;================================================================================
-keyb_write_bit:
+ps2_drv_write_bit:
     pha
 
     lda #$ca                      ; Default to pull CB2 low
@@ -440,14 +440,14 @@ keyb_write_bit:
     rts
 
 ;================================================================================
-;   keyb_set_leds - set all leds on/off
+;   ps2_drv_set_leds - set all leds on/off
 ;   ————————————————————————————————————
 ;   Parameters:      .A is led status byte
 ;   Returned Values: none
 ;   Destroys:        .A
 ;   ————————————————————————————————————
 ;================================================================================
-keyb_set_leds:
+ps2_drv_set_leds:
     phx
     phy
 
@@ -460,24 +460,24 @@ keyb_set_leds:
 
     ; Befehl $ED (Set LEDs) senden
     lda #PS2_SET_LEDS             ; $ED
-    jsr keyb_write
+    jsr ps2_drv_write
 
     ; Warten, bis die Tastatur das Befehls-ACK ($FA) geschickt hat
 
     ldx #50
-    jsr KEYB_pop_scancode_timeout
+    jsr PS2_DRV_pop_scancode_timeout
     bcs @led_timeout              ; Timeout? Dann abbrechen.
     cmp #PS2_ACK
     bne @led_err                  ; Falsche Antwort? Abbrechen.
 
     ; Das LED-Datenbyte hinterhersenden
     lda ZP_KEYB_LEDS              ; Holt den Zustand (z.B. $04 oder $00)
-    jsr keyb_write
+    jsr ps2_drv_write
 
     ; Auch das zweite ACK der Tastatur abwarten und verwerfen,
     ; damit es später nicht als "Geister-Taste" im KEYB_BUFFER landet!
     ldx #50
-    jsr KEYB_pop_scancode_timeout
+    jsr PS2_DRV_pop_scancode_timeout
     bcs @led_timeout              ; Timeout? Dann abbrechen.
     cmp #PS2_ACK
     bne @led_err                  ; Falsche Antwort? Abbrechen.
@@ -496,14 +496,14 @@ keyb_set_leds:
     rts
 
 ;================================================================================
-;   KEYB_ihandler - PS/2 keyboard IRQ Handler
+;   PS2_DRV_ihandler - PS/2 keyboard IRQ Handler
 ;   ————————————————————————————————————
 ;   Parameters:      none
 ;   Returned Values: none
 ;   Destroys:        none
 ;   ————————————————————————————————————
 ;================================================================================
-KEYB_ihandler:
+PS2_DRV_ihandler:
     ; Check for PS/2 related VIA interrupts
     lda KEYB_IFR
     and #$24                  ; Timer-2 ($20) or ShiftRegister ($04) interrupt
@@ -575,10 +575,10 @@ KEYB_ihandler:
     
     ; No framing errors, and correct parity, so get ready for the next character, and store this one
 
-    KEYB_PREPARE_READ_CHARACTER
+    PS2_DRV_PREPARE_READ_CHARACTER
 
     lda ZP_KEYB_RD_RESULT
-    KEYB_ADD_TO_BUFFER
+    PS2_DRV_ADD_TO_BUFFER
 
 ; ISRs called by main ISR are called by jmp, not jsr, to save cycles in ISR chain.
 ; So we must get back the saved registers and return with RTI (leave the ISR-chain), not RTS.
@@ -602,10 +602,10 @@ irq_via_ps2_framingerror:
     sta KEYB_DDR              ; release clock
 
     ; Prepare for the next character
-    KEYB_PREPARE_READ_CHARACTER
+    PS2_DRV_PREPARE_READ_CHARACTER
 
     lda #PS2_ERR
-    KEYB_ADD_TO_BUFFER
+    PS2_DRV_ADD_TO_BUFFER
 
 ; ISRs called by main ISR are called by jmp, not jsr, to save cycles in ISR chain.
 ; So we must get back the saved registers and return with RTI (leave the ISR-chain), not RTS.
