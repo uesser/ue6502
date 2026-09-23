@@ -24,12 +24,6 @@ E  = %01000000
 RW = %00100000
 RS = %00010000
 
-;--------------------------------------------------------------------------------
-;   Code
-;--------------------------------------------------------------------------------
-
-.segment "OS_CODE"
-
 .macro WRITE_LCD_BUFFER           ; Screibt .A in LCD_BUFFER an die richtige (aktuelle) Stelle - zerstört: NONE
     phx
     
@@ -44,6 +38,29 @@ RS = %00010000
 
     plx
 .endmacro
+
+.macro translate_ascii_to_lcd     ; Converts ASCII to LCD Codes
+    phx
+
+    ldx #LCD_TABLE_SIZE - 1       ; Start at the end of the table
+tatl_loop_search:
+    cmp ascii_table, x            ; Does the character match?
+    beq tatl_found                ; Yes -> get the translation
+    dex                           ; No -> check next character
+    bpl tatl_loop_search          ; Keep searching as long as X >= 0
+    bra tatl_exit
+
+tatl_found:
+    lda lcd_table, x              ; Fetch the translated code from destination table
+tatl_exit:
+    plx
+.endmacro
+
+;--------------------------------------------------------------------------------
+;   Code
+;--------------------------------------------------------------------------------
+
+.segment "OS_CODE"
 
 ;================================================================================
 ;   LCD_init - initializes the LCD
@@ -549,16 +566,18 @@ lcd_scroll:
 ;   ————————————————————————————————————
 ;================================================================================
 lcd_putchar:
+    translate_ascii_to_lcd        ; Converts ASCII to LCD if lCD has other codes than the ordinary ASCII code
+
     WRITE_LCD_BUFFER
-    jsr lcd_writedata             ; Auf echtes LCD ausgeben
+    jsr lcd_writedata             ; Print on real LCD
 
     pha
 
-    ; Prüfen, ob wir am Zeilenende (Spalte 19) angekommen sind
+    ; Check id line end (Spalte 19)
     lda ZP_LCD_COL
     cmp #LCDCOLS-1
     beq @lp_row_overflow
-    inc ZP_LCD_COL                ; Cursor auf dem Papier eins weiter
+    inc ZP_LCD_COL                ; Increment cursor position
     pla
     rts
 
@@ -566,14 +585,14 @@ lcd_putchar:
     stz ZP_LCD_COL
     inc ZP_LCD_ROW
     lda ZP_LCD_ROW
-    cmp #LCDROWS                  ; Letzte Zeile überschritten?
+    cmp #LCDROWS                  ; Overflow last row
     beq @lp_scroll
-    jsr lcd_setcursor             ; Cursor auch auf dem LCD selbst setzen
+    jsr lcd_setcursor             ; Set cursor on real LCD
     pla
     rts
 
 @lp_scroll:
-    jsr lcd_scroll                ; Scrollen auslösen
+    jsr lcd_scroll                ; Porcess scroll
     pla
     rts
 
@@ -681,6 +700,28 @@ LCD_print_hex:
 ;--------------------------------------------------------------------------------
 
 .segment "OS_DATA_RO"
+
+; =========================================================================
+; Tables to convert ASCII to LCD codes (must be kept in sync)
+; =========================================================================
+; $f6 -> $ef  -  ö
+; $df -> $e2  -  ß
+; $e4 -> $e1  -  ä
+; $fc -> $f5  -  ü
+; $b4 -> $07  -  ´
+; $b0 -> $df  -  °
+; $d6 -> $03  -  Ö
+; $c4 -> $02  -  Ä
+; $dc -> $04  -  Ü
+; $80 -> $05  -  €
+; $b5 -> $e4  -  µ
+; $5c -> $01  -  \
+; $7e -> $06  -  ~
+ascii_table:
+    .byte $f6, $df, $e4, $fc, $b4, $b0, $d6, $c4, $dc, $80, $b5, $5c, $7e
+lcd_table:
+    .byte $ef, $e2, $e1, $f5, $07, $df, $03, $02, $04, $05, $e4, $01, $06
+    LCD_TABLE_SIZE = * - lcd_table
 
 ; Jump table for special keys like shift, ctrl, alt, altGr, Caps_Lock
 lcd_jump_table:
