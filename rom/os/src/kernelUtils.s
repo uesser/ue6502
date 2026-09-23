@@ -49,7 +49,7 @@ LOOP_COUNT = (REMAINDER_CYCLES - 8 + 4) / 5
 	plx                         ; (4 cycles)
 .endmacro
 
-.segment "CODE"
+.segment "OS_CODE"
 
 ;================================================================================
 ;   _kernel_sleep - sleeps a while

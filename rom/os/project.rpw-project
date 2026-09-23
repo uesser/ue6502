@@ -12,8 +12,8 @@
     "include/keyboard.h",
     "include/lcd.inc",
     "include/lcd.h",
-    "include/sysram.inc",
-    "include/sysram.h",
+    "include/sysdata.inc",
+    "include/sysdata.h",
     "include/via.inc",
     "include/via.h"
   ],
@@ -23,7 +23,7 @@
     "keyboard.s",
     "kernelUtils.s",
     "lcd.s",
-    "sysram.s",
+    "sysdata.s",
     "via.s"
   ]
 }

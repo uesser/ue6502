@@ -5,7 +5,7 @@
 .include "cpu.inc"
 
 .include "ascii.h"
-.include "sysram.inc"
+.include "sysdata.inc"
 .include "kernelUtils.inc"
 .include "via.inc"
 .include "lcd.h"
@@ -28,7 +28,7 @@ RS = %00010000
 ;   Code
 ;--------------------------------------------------------------------------------
 
-.segment "CODE"
+.segment "OS_CODE"
 
 .macro WRITE_LCD_BUFFER           ; Screibt .A in LCD_BUFFER an die richtige (aktuelle) Stelle - zerstört: NONE
     phx
@@ -680,16 +680,7 @@ LCD_print_hex:
 ;   Data declarations
 ;--------------------------------------------------------------------------------
 
-.segment "RODATA"
-
-lcdrowstart:
-    .byte $00       ; 20x4 and 16x2 displays
-    .byte $40       ; 20x4 and 16x2 displays
-    .byte $14       ; 20x4          display
-    .byte $54       ; 20x4          display
-
-lcd_row_offsets:
-    .byte 0, 20, 40, 60
+.segment "OS_DATA_RO"
 
 ; Jump table for special keys like shift, ctrl, alt, altGr, Caps_Lock
 lcd_jump_table:
@@ -704,27 +695,36 @@ lcd_jump_table:
     .byte $00               
     .word lcd_putchar             ; Der sichere Ausgang für normale Zeichen
 
-hexmap: 
-    .byte "0123456789ABCDEF"
+lcdrowstart:
+    .byte $00       ; 20x4 and 16x2 displays
+    .byte $40       ; 20x4 and 16x2 displays
+    .byte $14       ; 20x4          display
+    .byte $54       ; 20x4          display
+
+lcd_row_offsets:    ; is used in macro WRITE_LCD_BUFFER
+    .byte 0, 20, 40, 60
 
 custom_char_data:
     ; Platz $01: Backslash \
     .byte $10, $10, $08, $04, $02, $01, $01, $00
     ; Platz $02: Großes Ä
-    .byte $0A, $00, $0E, $11, $1F, $11, $11, $00
+    .byte $0A, $04, $0E, $11, $1F, $11, $11, $00
     ; Platz $03: Großes Ö
-    .byte $0A, $00, $0E, $11, $11, $11, $0E, $00
+    .byte $0A, $0E, $11, $11, $11, $11, $0E, $00
     ; Platz $04: Großes Ü
-    .byte $0A, $00, $11, $11, $11, $11, $0E, $00
+    .byte $0A, $11, $11, $11, $11, $11, $0E, $00
     ; Platz $05: Euro sign €
     .byte $07, $08, $1E, $08, $1E, $08, $07, $00
-    ; Platz $06: Section sign §
-    .byte $06, $08, $04, $0A, $04, $02, $0C, $00
+    ; Platz $06: Tilde ~
+    .byte $00, $00, $00, $09, $16, $00, $00, $00
     ; Platz $07: Reverse quote sign ´
     .byte $01, $02, $04, $00, $00, $00, $00, $00
 
 custom_char_data_size = * - custom_char_data
 
+; Self defined char 0 - not used currently
+
+; Self defined char 1 "\"
 ; Reihe 0:  %00010000  (Hex: $10)   # . . .
 ; Reihe 1:  %00010000  (Hex: $10)   # . . .
 ; Reihe 2:  %00001000  (Hex: $08)   . # . .
@@ -734,26 +734,19 @@ custom_char_data_size = * - custom_char_data
 ; Reihe 6:  %00000001  (Hex: $01)   . . . . #
 ; Reihe 7:  %00000000  (Hex: $00)   (Cursor-Linie, bleibt meist frei)
 
+; Self defined char 2 "Ä"
 ; Reihe 0:  %00001010  (Hex: $0A)   . # . # .  (Die Punkte)
-; Reihe 1:  %00000000  (Hex: $00)   . . . . .
-; Reihe 2:  %00001110  (Hex: $0E)   . # # # .
+; Reihe 1:  %00000100  (Hex: $04)   . . # . .
+; Reihe 2:  %00001010  (Hex: $0A)   . # . # .
 ; Reihe 3:  %00010001  (Hex: $11)   # . . . #
 ; Reihe 4:  %00011111  (Hex: $1F)   # # # # #
 ; Reihe 5:  %00010001  (Hex: $11)   # . . . #
 ; Reihe 6:  %00010001  (Hex: $11)   # . . . #
 ; Reihe 7:  %00000000  (Hex: $00)   . . . . .
 
+; Self defined char 3 "Ö"
 ; Reihe 0:  %00001010  (Hex: $0A)   . # . # .
-; Reihe 1:  %00000000  (Hex: $00)   . . . . .
-; Reihe 2:  %00001110  (Hex: $0E)   . # # # .
-; Reihe 3:  %00010001  (Hex: $11)   # . . . #
-; Reihe 4:  %00010001  (Hex: $11)   # . . . #
-; Reihe 5:  %00010001  (Hex: $11)   # . . . #
-; Reihe 6:  %00001110  (Hex: $0E)   . # # # .
-; Reihe 7:  %00000000  (Hex: $00)   . . . . .
-
-; Reihe 0:  %00001010  (Hex: $0A)   . # . # .
-; Reihe 1:  %00000000  (Hex: $00)   . . . . .
+; Reihe 1:  %00001110  (Hex: $0E)   . # # # .
 ; Reihe 2:  %00010001  (Hex: $11)   # . . . #
 ; Reihe 3:  %00010001  (Hex: $11)   # . . . #
 ; Reihe 4:  %00010001  (Hex: $11)   # . . . #
@@ -761,6 +754,17 @@ custom_char_data_size = * - custom_char_data
 ; Reihe 6:  %00001110  (Hex: $0E)   . # # # .
 ; Reihe 7:  %00000000  (Hex: $00)   . . . . .
 
+; Self defined char 4 "Ü"
+; Reihe 0:  %00001010  (Hex: $0A)   . # . # .
+; Reihe 1:  %00010001  (Hex: $11)   # . . . #
+; Reihe 2:  %00010001  (Hex: $11)   # . . . #
+; Reihe 3:  %00010001  (Hex: $11)   # . . . #
+; Reihe 4:  %00010001  (Hex: $11)   # . . . #
+; Reihe 5:  %00010001  (Hex: $11)   # . . . #
+; Reihe 6:  %00001110  (Hex: $0E)   . # # # .
+; Reihe 7:  %00000000  (Hex: $00)   . . . . .
+
+; Self defined char 5 "€"
 ; Reihe 0:  %00001010  (Hex: $07)   . . # # #
 ; Reihe 1:  %00000000  (Hex: $08)   . # . . .
 ; Reihe 2:  %00010001  (Hex: $1E)   # # # # .
@@ -770,15 +774,17 @@ custom_char_data_size = * - custom_char_data
 ; Reihe 6:  %00001110  (Hex: $07)   . . # # #
 ; Reihe 7:  %00000000  (Hex: $00)   . . . . .
 
-; Reihe 0:  %00001010  (Hex: $06)   . . # # .
-; Reihe 1:  %00000000  (Hex: $08)   . # . . .
-; Reihe 2:  %00010001  (Hex: $04)   . . # . .
-; Reihe 3:  %00010001  (Hex: $0A)   . # . # .
-; Reihe 4:  %00010001  (Hex: $04)   . . # . .
-; Reihe 5:  %00010001  (Hex: $02)   . . . # .
-; Reihe 6:  %00001110  (Hex: $0C)   . # # . .
+; Self defined char 6 "~"
+; Reihe 0:  %00000000  (Hex: $00)   . . . . .
+; Reihe 1:  %00000000  (Hex: $00)   . . . . .
+; Reihe 2:  %00000000  (Hex: $00)   . . . . .
+; Reihe 3:  %00001001  (Hex: $09)   . # . . #
+; Reihe 4:  %00010110  (Hex: $16)   # . # # .
+; Reihe 5:  %00000000  (Hex: $00)   . . . . .
+; Reihe 6:  %00000000  (Hex: $00)   . . . . .
 ; Reihe 7:  %00000000  (Hex: $00)   . . . . .
 
+; Self defined char 7 "´"
 ; Reihe 0:  %00001010  (Hex: $01)   . . . . #
 ; Reihe 1:  %00000000  (Hex: $02)   . . . # .
 ; Reihe 2:  %00010001  (Hex: $04)   . . # . .

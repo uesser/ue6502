@@ -1,5 +1,5 @@
-.ifndef _PS2_DRIVER_INC_
-_PS2_DRIVER_INC_ = 1
+.ifndef _KEYB_DRIVER_INC_
+_KEYB_DRIVER_INC_ = 1
 
 .import PS2_DRV_init
 .import PS2_DRV_pop_scancode
@@ -10,6 +10,6 @@ _PS2_DRIVER_INC_ = 1
 
 .import PS2_DRV_ihandler
 
-.include "ps2-driver.h"
+.include "keyb_driver.h"
 
 .endif

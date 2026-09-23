@@ -3,14 +3,9 @@
 .include "linker_symbols.h"
 
 .include "constants.inc"
-.include "sysram.inc"
+.include "sysdata.inc"
 .include "kernelUtils.inc"
 .include "acia.h"
-
-ACIA_DATA    = __IO_START__ + $400
-ACIA_STATUS  = __IO_START__ + $401
-ACIA_COMMAND = __IO_START__ + $402
-ACIA_CONTROL = __IO_START__ + $403
 
 .export ACIA_DATA
 .export ACIA_STATUS
@@ -26,8 +21,30 @@ ACIA_CONTROL = __IO_START__ + $403
 
 .export ACIA_ihandler
 
+ACIA_DATA    = __IO_START__ + $400
+ACIA_STATUS  = __IO_START__ + $401
+ACIA_COMMAND = __IO_START__ + $402
+ACIA_CONTROL = __IO_START__ + $403
+
 BAUD_RATE      = 115200  ; Bitte beachten, dass auch in init: die entspr. Baudrate eingestellt wird. Sonst passen die Berechnungen hier nicht.
 BITS_PER_CHAR  = 10
+
+.macro ACIA_writestr str_addr
+    lda #<str_addr
+    sta ACIA_SPTR
+    lda #>str_addr
+    sta ACIA_SPTR+1
+    jsr ACIA_send_string
+.endmacro
+
+.macro ACIA_writeln str_addr
+    ACIA_writestr str_addr
+    jsr ACIA_send_string
+	lda #ASCII_CR              ; carriage return
+	jsr ACIA_send_byte
+.endmacro
+
+.segment "OS_CODE"
 
 ; =========================================================================
 ; MATHE-PARSER FÜR DIE WARTESCHLEIFE (Compilezeit)
@@ -75,8 +92,6 @@ SLEEP_HIGH = >SLEEP_BLOCKS
     sec
     sbc ZP_ACIA_RD_PTR
 .endmacro
-
-.segment "CODE"
 
 ;================================================================================
 ;   ACIA_init - initializes the R6551 // RS232 Serial communications
@@ -286,9 +301,3 @@ ACIA_ihandler:               ; IRQ handler for ACIA RX. Must be called by overal
     plx                       ; restore x
     pla                       ; restore Akku
     rti
-
-
-.segment "RODATA"
-
-hexmap: 
-    .byte "0123456789ABCDEF"

@@ -4,11 +4,11 @@
 
 .include "cpu.inc"
 
-.include "sysram.inc"
+.include "sysdata.inc"
 .include "kernelUtils.inc"
 .include "via.inc"
 .include "lcd.inc"
-.include "ps2-driver.h"
+.include "keyb_driver.h"
 
 .export PS2_DRV_init
 .export PS2_DRV_pop_scancode
@@ -94,7 +94,7 @@ wait:
     bvs wait
 .endmacro
 
-.segment "CODE"
+.segment "OS_CODE"
 
 ;================================================================================
 ;   PS2_DRV_init - initializes the PS2 keyboard driver
@@ -127,7 +127,7 @@ PS2_DRV_init:
     jsr ps2_drv_write
 
 	; Initialise keyboard buffer pointer WRite ($01) and ReaD ($00). do it here to skip keyb-data (e.g. ACK) at power on.
-    ; ReaD is initialized with $00 in function SYSRAM_init.
+    ; ReaD is initialized with $00 in function SYSDATA_init.
     lda #1
     sta ZP_KEYB_WR_PTR
 
@@ -615,7 +615,7 @@ irq_via_ps2_framingerror:
     rti
 
 
-.segment "RODATA"
+.segment "OS_DATA_RO"
 
 ; Due to hardware design, the bits of the PS/2 scancode are in reverse order (comming in via shift register).
 ; This table reverses them back to normal.

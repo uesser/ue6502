@@ -1,8 +1,14 @@
-.ifndef _SYSRAM_INC_
-_SYSRAM_INC_ = 1
+.ifndef _SYSDATA_INC_
+_SYSDATA_INC_ = 1
 
-.import SYSRAM_init
+;---------------------------------
+;   Segment OS_CODE
+;---------------------------------
+.import SYSDATA_init
 
+;---------------------------------
+;   Segment ZEROPAGE
+;---------------------------------
 .importzp ZP_LCD_COL
 .importzp ZP_LCD_ROW
 .importzp ZP_LCD_JMP_PTR
@@ -20,6 +26,7 @@ _SYSRAM_INC_ = 1
 .importzp ZP_KEYB_FLAGS
 .importzp ZP_KEYB_IS_RELEASE
 .importzp ZP_KEYB_IS_SPECIAL
+.importzp ZP_KEYB_IS_NUMLOCK
 .importzp ZP_KEYB_IS_CAPSLOCK
 .importzp ZP_KEYB_IS_SCROLL 
 
@@ -33,21 +40,38 @@ _SYSRAM_INC_ = 1
 .importzp ZP_KERNEL_LAST_KEY
 .importzp ZP_KERNEL_TAB_WIDTH
 
-.import ACIA_BUFFER_SIZE
-.import KEYB_BUFFER_SIZE
-.import LCD_BUFFER_SIZE
-
+;---------------------------------
+;   Segment BSS
+;---------------------------------
 .import ACIA_BUFFER
 .import KEYB_BUFFER
 .import LCD_BUFFER
+
+.import ACIA_BUFFER_SIZE
+.import KEYB_BUFFER_SIZE
+.import LCD_BUFFER_SIZE
 
 .import shell_cmd_id
 .import shell_cmd_tmp
 .import shell_buffer_used
 .import shell_buffer
 
-.import osversion
-.import copywrite 
+;---------------------------------
+;   Segment VIDEO_DATA
+;---------------------------------
+.import VIDEORAM_BUFFER
+.import VIDEORAM_BUFFER_SIZE
 
-;.include "sysram.h"
+;---------------------------------
+;   Segment OS_DATA_RO
+;---------------------------------
+.import hexmap
+
+;---------------------------------
+;   Segment OS_DATA_VERSION
+;---------------------------------
+.import osversion
+.import copywrite
+
+;.include "sysdata.h"
 .endif

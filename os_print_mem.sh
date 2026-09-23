@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# Globale Anweisung für ShellCheck, damit der Parser bei den 
-# Regex-Ergebnissen (${BASH_REMATCH}) nicht verwirrt wird
+# Global instruction for ShellCheck, tell the parser not being
+# confused by Regex-results (${BASH_REMATCH})
 # shellcheck disable=SC2128,SC2178
 
-# 1. Schreibpuffer leeren und kurz warten
+# 1. Empty filesystem buffers and wait a short while (0.1s = 100ms)
 sync
 sleep 0.1
 
 MAPFILE="$1"
 
 if [ ! -f "$MAPFILE" ]; then
-    echo "Fehler: $MAPFILE nicht gefunden!"
+    echo "Error: $MAPFILE not found!"
     exit 1
 fi
 
@@ -20,30 +20,32 @@ if command -v dos2unix >/dev/null 2>&1; then
 fi
 
 echo "===================================================================================="
-echo " SPEICHERBELEGUNG:"
+echo "  MEMORY USAGE:"
 echo "===================================================================================="
-printf "  %-12s  %-8s  %-8s  %-26s  %s\n" "Segment" "Start" "End" "Groesse (Hex / Dezimal)" "Ausrichtung"
+printf "  %-15s  %-8s  %-8s  %-26s  %s\n" "Segment" "Start" "End" "Size (Hex / Decimal)" "Alignment"
 echo "  ----------------------------------------------------------------------------------"
 
-# Standardkapazitäten als Fallback
+# Standard capacities as fallback
 zp_max=256
-ram_max=512
+sysdata_max=512
+ram_max=27648
 rom_max=5888
 
 zp_total=0
+sysdata_total=0
 ram_total=0
 rom_total=0
 
 in_exp=0
 in_seg=0
 
-# Explizite Array-Deklarationen für maximale ShellCheck-Konformität
+# Explicit Array-Declarations fopr maximal ShellCheck-conformity
 declare -a seg_names=()
 declare -a seg_starts=()
 declare -a seg_ends=()
 declare -a seg_sizes=()
 
-# Zeilenweise Verarbeitung der Datei ohne Altlasten-Variablen
+# Line by line processing the mapfile
 while read -r line || [ -n "$line" ]; do
     if [[ "$line" =~ ^"Exports list" ]]; then in_exp=1; in_seg=0; continue; fi
     if [[ "$line" =~ ^"Imports list" ]]; then in_exp=0; fi
@@ -73,7 +75,7 @@ while read -r line || [ -n "$line" ]; do
     fi
 done < "$MAPFILE"
 
-# Formatierte Ausgabe
+# Formatted output
 for i in "${!seg_names[@]}"; do
     name="${seg_names[$i]}"
     start="${seg_starts[$i]}"
@@ -94,16 +96,19 @@ for i in "${!seg_names[@]}"; do
     if [ "$name" = "ZEROPAGE" ]; then
         zp_total=$((zp_total + dec))
     elif [ "$name" = "BSS" ] || [ "$name" = "DATA" ]; then
+        sysdata_total=$((sysdata_total + dec))
+    elif [ "$name" = "PRG_CODE" ] || [ "$name" = "PRG_DATA" ]; then
         ram_total=$((ram_total + dec))
-    elif [[ "$name" =~ ^(CODE|RODATA|VERSDATA|VECTORS)$ ]]; then
+    elif [[ "$name" =~ ^(OS_CODE|OS_DATA_RO|OS_DATA_VERSION|OS_VECTORS)$ ]]; then
         rom_total=$((rom_total + dec))
     fi
 
-    printf "  %-12s  %-8s  %-8s  %-26s  Align: %s\n" "$name" "$start" "$end" "$size_str" "$align_val"
+    printf "  %-15s  %-8s  %-8s  %-26s  Align: %s\n" "$name" "$start" "$end" "$size_str" "$align_val"
 done
 
 echo "  ----------------------------------------------------------------------------------"
-printf "  ⚡ ZEROPAGE  : %4d / %4d Bytes belegt (%5.1f%%) -> Noch %4d Bytes FREI\n" "$zp_total" "$zp_max" "$((zp_total * 1000 / zp_max))e-1" "$((zp_max - zp_total))"
-printf "  💾 SYSTEM-RAM: %4d / %4d Bytes belegt (%5.1f%%) -> Noch %4d Bytes FREI\n" "$ram_total" "$ram_max" "$((ram_total * 1000 / ram_max))e-1" "$((ram_max - ram_total))"
-printf "  💿 ROM GESAMT: %4d / %4d Bytes belegt (%5.1f%%) -> Noch %4d Bytes FREI\n" "$rom_total" "$rom_max" "$((rom_total * 1000 / rom_max))e-1" "$((rom_max - rom_total))"
+printf "  ⚡ ZEROPAGE  : %5d / %5d Bytes used (%5.1f%%) -> %5d Bytes FREE\n" "$zp_total" "$zp_max" "$((zp_total * 1000 / zp_max))e-1" "$((zp_max - zp_total))"
+printf "  💾 SYSTEM-RAM: %5d / %5d Bytes used (%5.1f%%) -> %5d Bytes FREE\n" "$sysdata_total" "$sysdata_max" "$((sysdata_total * 1000 / sysdata_max))e-1" "$((sysdata_max - sysdata_total))"
+printf "  💾 RAM       : %5d / %5d Bytes used (%5.1f%%) -> %5d Bytes FREE\n" "$ram_total" "$ram_max" "$((ram_total * 1000 / ram_max))e-1" "$((ram_max - ram_total))"
+printf "  💿 ROM total : %5d / %5d Bytes used (%5.1f%%) -> %5d Bytes FREE\n" "$rom_total" "$rom_max" "$((rom_total * 1000 / rom_max))e-1" "$((rom_max - rom_total))"
 echo "===================================================================================="
