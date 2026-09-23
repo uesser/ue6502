@@ -3,7 +3,7 @@ LD65 = ld65
 
 # --cpu wird in den AFLAGS nicht gesetzt, da .setcpu "65816" in den sources gesetzt wird (s. cpu.inc).
 AFLAGS = --feature force_range -W 1 --debug-info $(OS_INCLUDES)
-LDFLAGS = -C $(OS_CFG) --dbgfile $(OS_BUILD_DIR)/os.dbg
+LDFLAGS = -vm -C $(OS_CFG) -m $(OS_MAPFILE) --dbgfile $(OS_DBGFILE)
 
 # Values to fit os and basic into the same EPROM, which size is 32kB (32768 bytes), but only the upper 16kB of EPROM used.
 # The OS is placed at 0x2900 (10496) and the BASIC at 0x0000 (0), overall at an offset of 0x4000 (16384) (upper 16kB).
@@ -24,8 +24,11 @@ OS_SRCS := $(OS_SRC_DIR)/kernel.s \
 	$(filter-out $(OS_SRC_DIR)/kernel.s,$(wildcard $(OS_SRC_DIR)/*.s))
 OS_OBJS := $(patsubst $(OS_SRC_DIR)/%.s,$(OS_OBJ_DIR)/%.o,$(OS_SRCS))
 OS_DEPS := $(OS_OBJS:.o=.d)
+OS_MAPFILE := $(OS_BUILD_DIR)/os.map
+OS_DBGFILE := $(OS_BUILD_DIR)/os.dbg
 OS_LD_IMAGE := $(OS_BUILD_DIR)/os
 OS_IMAGE := $(OS_BUILD_DIR)/os.bin
+OS_PRINT_MEM := ./os_print_mem.sh
 
 BASIC_DIR := rom/basic
 BASIC_CFG := $(BASIC_DIR)/ue65c02-basic.cfg
@@ -58,6 +61,7 @@ $(BASIC_IMAGE): $(BASIC_SRCS)
 $(OS_IMAGE): $(OS_OBJS) $(OS_CFG) | $(OS_BUILD_DIR)
 	$(LD65) $(LDFLAGS) -o $(OS_LD_IMAGE) $(OS_OBJS)
 	rm -f $(OS_LD_IMAGE)
+	@$(OS_PRINT_MEM) $(OS_MAPFILE)
 
 define CREATE_ROM_16_SCRIPT
 from pathlib import Path

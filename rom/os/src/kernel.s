@@ -2,16 +2,26 @@
 
 .include "cpu.inc"
 
-.import SYSRAM_init
+.include "linker_symbols.h"
 
-.include "sysram.inc"
+.include "sysdata.inc"
 .include "acia.inc"
 .include "via.inc"
 .include "lcd.inc"
 .include "keyboard.inc"
-.include "kernel.inc"
+.include "kernel.h"
 
-.segment "CODE"
+.segment "PRG_CODE"
+prg_entry:
+    rts
+
+.segment "PRG_DATA"
+    dummy:     .res  1
+
+.segment "IO"
+    IO_AREA:   .res  $2000
+
+.segment "OS_CODE"
 
 reset:
     ; Computer bootstrap code. This is the first code that runs after reset.
@@ -21,7 +31,7 @@ reset:
     ldx #$ff
     txs
 
-    jsr SYSRAM_init
+    jsr SYSDATA_init
 
 ;    jsr VIA_init
     jsr ACIA_init
@@ -100,8 +110,11 @@ tab_handler:
 @tab_no_ctrl:
     lda ZP_KERNEL_TAB_WIDTH
     cmp #1
-    beq @keyboard_process
+    bne @tab_as_spc_bs
+    lda #ASCII_HT
+    bra @keyboard_process
 
+@tab_as_spc_bs:
     jsr KEYB_is_shift
     bne @tab_shift
 
@@ -260,7 +273,7 @@ shell_newline:
 shell_newline_ACIA:
   lda #ASCII_CR
   jsr ACIA_send_byte
-  lda #$0a
+  lda #ASCII_LF
   jsr ACIA_send_byte
   rts
 
@@ -646,7 +659,9 @@ nmi_return:
     pla                       ; restore Akku
     rti
 
-.segment "VECTORS"
+;===================================================================
+.segment "OS_VECTORS"
+
 .word nmi
 .word reset
 .word irq
