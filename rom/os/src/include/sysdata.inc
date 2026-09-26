@@ -22,6 +22,8 @@ _SYSDATA_INC_ = 1
 .importzp ZP_KEYB_RD_PTR
 .importzp ZP_KEYB_JMP_PTR
 .importzp ZP_KEYB_JMP_PTR_HI
+.importzp ZP_KEYB_ASCII_TABLE_PTR
+.importzp ZP_KEYB_ASCII_TABLE_PTR_HI
 .importzp ZP_KEYB_LEDS
 .importzp ZP_KEYB_FLAGS
 .importzp ZP_KEYB_IS_RELEASE

@@ -101,7 +101,13 @@ tab_handler:
     cmp #ASCII_HT
     bne @keyboard_process         ; kein TAB? Dann weiter zu @keyboard_process
 
-    jsr KEYB_is_ctrl              ; muss als Ctrl-I kommen, da mit Ctrl nur A-Z bearbeitet werden in keyboard.s/keyb_to_ascii
+    ; Detect Ctrl directly from the global modifier flags: the OS kernel is a
+    ; trusted in-process consumer, and a TAB arrives as an ASCII key whose .X
+    ; packet carries only the physical scancode (not the modifier mask), so the
+    ; per-event packet getters (KEYB_is_ctrl/.X) can't answer this query. A global
+    ; read here is fine because the shell is the single key consumer.
+    lda ZP_KEYB_FLAGS
+    and #(KB_CTRL_LEFT | KB_CTRL_RIGHT)
     beq @tab_no_ctrl
 
     jsr kernel_set_tab_width
@@ -115,7 +121,8 @@ tab_handler:
     bra @keyboard_process
 
 @tab_as_spc_bs:
-    jsr KEYB_is_shift
+    lda ZP_KEYB_FLAGS
+    and #KB_SHIFT
     bne @tab_shift
 
     lda #ASCII_SPC
