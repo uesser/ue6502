@@ -30,7 +30,6 @@ KEYB_T2C_L = VIA_T2C_L
 KEYB_T2C_H = VIA_T2C_H
 
 .macro PS2_DRV_PREPARE_READ_CHARACTER
-    pha
 	; Start SR
     ; Enable T2 counting pulses on PB6, and set SR in read mode, external clock (011)
     lda #$20 + $00   ; !!!important!!! first store $20 to ACR, then store $2c to ACR
@@ -43,18 +42,15 @@ KEYB_T2C_H = VIA_T2C_H
     lda #10
     sta KEYB_T2C_L
     stz KEYB_T2C_H
-    pla
 .endmacro
 
 .macro PS2_DRV_PREPARE_WRITE_CHARACTER
-    pha
     ; 1. Schieberegister und Timer im ACR komplett abschalten
     ; Das zwingt PB6 und CB2 zu ganz normalen, passiven Digital-Pins
     stz KEYB_ACR
     
     ; 2. Schieberegister blind auslesen, um eventuelle Bit-Reste zu tilgen
-    lda KEYB_SR
-    pla
+    ldx KEYB_SR
 .endmacro
 
 .macro PS2_DRV_ADD_TO_BUFFER
@@ -80,18 +76,21 @@ katb_wr_ptr:
 katb_end:
 .endmacro	
 
-.macro WAITPB6HIGH
-    .local wait
-wait:
-    bit KEYB_PORT
-    bvc wait
-.endmacro
-
 .macro WAITPB6LOW
     .local wait
 wait:
     bit KEYB_PORT
     bvs wait
+.endmacro
+
+.macro WAITPB6HIGH
+    .local wait
+wait:
+    bit KEYB_PORT
+    bvc wait
+    .repeat 5
+        nop
+    .endrepeat
 .endmacro
 
 .segment "OS_CODE"
@@ -123,6 +122,7 @@ PS2_DRV_init:
     sta KEYB_ACR
 
     ; Some USB-compatible keyboards dont act as PS/2 keyboards unless we send a reset command to them first
+    ; Furthermore we want to check if keyboard is there and works 
     lda #PS2_RESET
     jsr ps2_drv_write
 
@@ -131,7 +131,7 @@ PS2_DRV_init:
     lda #1
     sta ZP_KEYB_WR_PTR
 
-    ; Prepare for the first character
+    ; Prepare for reading from PS2-Keyboard
     PS2_DRV_PREPARE_READ_CHARACTER
 
     ; Disable interrupts except for T2 and SR
@@ -343,9 +343,10 @@ ps2_drv_write:
     phx
     phy
 
-    sei                           ; CPU-Interrupts sperren
+    sei                           ; Disable CPU-Interrupts
 
-    PS2_DRV_PREPARE_WRITE_CHARACTER  ; Zustand wie vor dem write in KEYB_init wiederherstellen
+    ; Prepare for writing to PS2-Keyboard
+    PS2_DRV_PREPARE_WRITE_CHARACTER
 
     ; Write a byte to the PS/2 port - bitbanging it for now, but it should be possible to use the shift register
 
@@ -355,56 +356,64 @@ ps2_drv_write:
     ; Then can read acknowledgement from device
 
 	; Clock low, data low
-    stz KEYB_PORT       ; Ausgaberegister vorbereiten
+    stz KEYB_PORT                 ; Prepare output register
     ldx #$40
-    stx KEYB_DDR        ; set PB6 as output -> Clock ist nun LOW
-    ldx #$ca
-    stx KEYB_PCR        ; set CB2 to low output -> Data ist nun LOW
+    stx KEYB_DDR                  ; set PB6 as output -> Clock ist nun LOW
 
-	; Wait a while
     ldy #0
-    ldx #1              ; sleep 100us
-    jsr _kernel_sleep
+    ldx #1
+    jsr _kernel_sleep             ; Das Protokoll schreibt vor mind. 100µs zu warten bis Data auf LOW gezogen wird
+    
+    ldx #$ca
+    stx KEYB_PCR                  ; set CB2 to low output -> Data ist nun LOW
+
+	ldy #0
+    ldx #1
+    jsr _kernel_sleep             ; 100µs warten bis Clock (PB6) wieder auf HIGH geht
 
     ; Let the clock float again (PB6 auf Eingang)
-    stz KEYB_DDR        ; PB6 wieder auf Eingang -> Clock geht HIGH
+    stz KEYB_DDR                  ; PB6 wieder auf Eingang -> Clock geht HIGH
     
     ; Track odd parity
-    ldy #1
+    ldy #1                        ; 2 cycles
 
     ; Loop once per bit, least significant bit first (PS/2 order)
-    ldx #8
+    ldx #8                        ; 2 cycles
 
-    clc                 ; Carry-Flag explizit LÖSCHEN! Das verhindert, dass Müll von vorher ins Byte rotiert.
+    clc                           ; 2 cycles; Clear Carry to set it up clean
 
 @ps2_write_bitloop:
+;    pha
+;    txa
+;    jsr LCD_print_hex
+;    pla
     ; Send next bit
-    ; rol init: ✔, $ed: $fe // ror init: ✔, $ed: $fe // lsr init: $ff, $ed: $fe // asl init: $ff, $ed: $fe
-    ror                 ; right rotate sollte richtig sein, da das PS/2-Protokoll LSB first erwtartet
-    jsr ps2_drv_write_bit
-    dex
-    bne @ps2_write_bitloop
+    ror                           ; 2 cycles; right rotate cause LSB first
+    jsr ps2_drv_write_bit         ; 6 cycles
+    dex                           ; 2 cycles
+    bne @ps2_write_bitloop        ; 3 cyclen (3 branch taken, else 2)
 
     ; Send the parity bii
-    tya
-    ror
-    jsr ps2_drv_write_bit
+    tya                           ; 2 cycles
+    ror                           ; 2 cycles
+    jsr ps2_drv_write_bit         ; 6 cycles
 
     ; Send the stop bit
-    sec                     ; set carry = 1
-    jsr ps2_drv_write_bit
+    sec                           ; 2 cycles; set carry = 1
+    jsr ps2_drv_write_bit         ; 6 cycles
 
-    ; Wait one more time for the final device clock
-    jsr ps2_drv_write_bit
+    ; Wait one more time for the final device clock reading the stop bit
+    WAITPB6LOW
+    WAITPB6HIGH
 
     ; Alle während unseres Bit-Bangings entstandenen IFR-Flags löschen
     lda #$24                
     sta KEYB_IFR            
 
-    ; Reaktiviert ACR $2C und lädt Timer 2 frisch mit 10
+    ; Prepare for reading from PS2-Keyboard
     PS2_DRV_PREPARE_READ_CHARACTER
 
-    cli                     ; CPU-Interrupts wieder freigeben
+    cli                           ; CPU-Interrupts wieder freigeben
     ply
     plx
     rts
@@ -414,30 +423,29 @@ ps2_drv_write:
 ;   ————————————————————————————————————
 ;   Parameters:      The bit to write is in the carry flag
 ;   Returned Values: none
-;   Destroys:        none
+;   Destroys:        .A
 ;   ————————————————————————————————————
 ;================================================================================
 ps2_drv_write_bit:
-    pha
+    pha                           ; 3 cycles
 
     lda #$ca                      ; Default to pull CB2 low
 
-    ; If next bit is clear, that is the right state for CB2
-    bcc @keyb_write_bit_clear      ; bcc = branch on carry clear (carry = 0)
+    bcc @keyb_write_bit_clear     ; low bit 3, high bit 2 cycles (3 branch taken, else 2); bcc = branch on carry clear (carry = 0)
 
     ; Otherwise track parity and let CB2 float instead
     iny
     lda #$0a                      ; CB2 fluten lassen (High)
 
 @keyb_write_bit_clear:
-    ; Wait for one tick from the device
-    WAITPB6HIGH
+    ; Wait for PS2-Clock goes LOW to read the Bit we wrote before, then wait for PS2-Clock to go HIGH again, so we can write the next Bit
     WAITPB6LOW
+    WAITPB6HIGH
 
-    sta KEYB_PCR                  ; Bit an VIA übergeben
+    sta KEYB_PCR                  ; 5 cycles; Send Bit to VIA
 
-    pla
-    rts
+    pla                           ; 4 cycles
+    rts                           ; 6 cycles
 
 ;================================================================================
 ;   ps2_drv_set_leds - set all leds on/off
@@ -471,7 +479,7 @@ ps2_drv_set_leds:
     bne @led_err                  ; Falsche Antwort? Abbrechen.
 
     ; Das LED-Datenbyte hinterhersenden
-    lda ZP_KEYB_LEDS              ; Holt den Zustand (z.B. $04 oder $00)
+    lda ZP_KEYB_LEDS              ; Holt den Zustand (z.B. $04 (CapsLock) oder $00 (alle aus))
     jsr ps2_drv_write
 
     ; Auch das zweite ACK der Tastatur abwarten und verwerfen,
@@ -490,7 +498,7 @@ ps2_drv_set_leds:
     lda #$77
 
 @led_err:
-    jsr LCD_print_hex
+;    jsr LCD_print_hex
     ply
     plx
     rts
