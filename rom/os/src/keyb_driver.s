@@ -403,6 +403,16 @@ ps2_drv_write:
     jsr ps2_drv_write_bit         ; 6 cycles
 
     ; Wait one more time for the final device clock reading the stop bit
+    ;
+    ; NOTE (benign behavior, NOT a bug): right at the end of the stop bit the
+    ; keyboard itself pulls the Data line LOW again (approx. 4/5 into the last
+    ; clock-high phase) before the stop-bit sampling edge. That is the device
+    ; already starting its ACK/response (per PS/2 protocol the host releases
+    ; both lines after the stop bit, and the device pulls Data low to begin its
+    ; own start bit). The stop bit is therefore read as 0 on the scope, but the
+    ; device knows it was the stop and framing stays correct - hence everything
+    ; keeps working. Our driver is only idling in WAITPB6LOW/WAITPB6HIGH here
+    ; and does not drive KEYB_PCR/KEYB_PORT at this point.
     WAITPB6LOW
     WAITPB6HIGH
 
