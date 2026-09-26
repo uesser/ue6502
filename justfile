@@ -7,29 +7,28 @@ default:
     @just --list
 
 # =========================================================
-# BUILD (ca65/ld65 via Makefiles in rom/)
+# BUILD (ca65/ld65 via the root Makefile -> build/rom32.bin)
 # =========================================================
 
-# Build the OS ROM image (rom/os/build/os.bin)
+# Build the overall OS+BASIC ROM image (build/rom32.bin)
 build:
-    @make -C rom/os
+    @make
 
-# Build the BASIC submodule image (into rom/basic)
+# Build the BASIC submodule image (into rom/basic/build/basic.bin)
 build-basic:
     @make -C rom/basic
 
-# Build both OS and BASIC images
+# Build both OS and BASIC images (root make already produces the combined image)
 build-all: build-basic build
     @echo "Built OS + BASIC ROM images"
 
-# Burn the OS ROM to an EPROM via minipro (requires AT28C256 hardware)
+# Burn the ROM to an EPROM via minipro (requires AT28C256 hardware)
 burn:
-    @make -C rom/os burn
+    @make burn
 
 # Remove build artifacts
 clean:
-    @make -C rom/os clean
-    @make -C rom/basic clean 2>/dev/null || true
+    @make clean
 
 # =========================================================
 # TEST / LINT / HTTP-SAFETY
@@ -38,7 +37,7 @@ clean:
 # No automated test suite yet: at least verify assembly syntax
 test:
     @echo "No test suite configured. Building as a syntax check..."
-    @make -C rom/os
+    @make
 
 # Run the Python helper scripts' self-checks (if any) — no-op for now
 lint:
